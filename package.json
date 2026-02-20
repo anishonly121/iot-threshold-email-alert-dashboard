@@ -1,0 +1,15 @@
+{
+    "name":  "iot-dashboard-alerts",
+    "version":  "1.0.0",
+    "private":  true,
+    "main":  "server.js",
+    "scripts":  {
+                    "start":  "node server.js",
+                    "test:email":  "node tests/trigger-email.test.js"
+                },
+    "dependencies":  {
+                         "@sendgrid/mail":  "^8.1.6",
+                         "dotenv":  "^16.4.7",
+                         "express":  "^4.21.2"
+                     }
+}
