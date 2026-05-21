@@ -1,68 +1,93 @@
-# IoT Threshold Email Alert Dashboard
+# 🌡️ IoT Threshold Email Alert Dashboard
 
-A web-based IoT monitoring dashboard that reads sensor data from ThingSpeak and sends email alerts via SendGrid when temperature or humidity drops below user-defined minimum thresholds.
+A web-based IoT monitoring dashboard that reads live sensor data from **ThingSpeak** and sends automated email alerts via **SendGrid** when temperature or humidity drops below user-defined thresholds.
 
-## Detailed Project Description
+---
 
-This project solves a common IoT monitoring problem: sensor values can drift into unsafe ranges when nobody is actively watching a dashboard. To address this, the system combines live visualization with automated notifications. The dashboard continuously pulls recent telemetry from ThingSpeak, renders it in time-series charts, and evaluates readings against user-defined thresholds.
+## 📸 Demo
 
-When a reading breaches the minimum threshold (for temperature or humidity), the app triggers an alert workflow. The frontend calls a secure backend endpoint, which uses SendGrid to send a structured alert email. This allows near real-time escalation from “data observed” to “actionable notification.”
+> _Add a screenshot or screen recording of your dashboard here_
 
-The design intentionally separates concerns:
+---
 
-- Frontend handles user interaction, charting, threshold management, and breach detection.
-- Backend handles all email delivery logic and secrets management.
-- SendGrid handles template-based transactional email delivery.
+## 🚀 Features
 
-This separation keeps sensitive credentials off the client, improves maintainability, and makes deployment and future scaling easier.
+- 📡 **Live ThingSpeak Integration** — Continuously polls real sensor feeds (temperature, humidity, soil moisture, PIR/motion)
+- 📊 **Interactive Charts** — Time-series visualizations powered by Chart.js
+- ⚠️ **Configurable Thresholds** — Set minimum limits per metric via an in-dashboard modal
+- 📧 **Automated Email Alerts** — SendGrid dynamic templates deliver structured breach notifications
+- 🔇 **Alert Cooldown** — Rate-limiting prevents repeated notification spam
+- 💾 **Local Persistence** — Thresholds and recipient settings saved across browser sessions
 
-## Features
+---
 
-- Real-time data fetch from ThingSpeak channels
-- Interactive charts for:
-  - Temperature
-  - Humidity
-  - Soil moisture
-  - PIR/motion
-- User-configurable threshold settings (temperature/humidity)
-- Email alerting for below-threshold conditions
-- SendGrid Dynamic Template support
-- Alert cooldown/rate-limiting to prevent spam
-- Local persistence of thresholds/email in browser storage
-- API test script to trigger and verify email alert flow
+## 🛠️ Tech Stack
 
-## Tech Stack
+| Layer | Technology |
+|---|---|
+| Frontend | HTML, CSS, JavaScript, Chart.js |
+| Backend | Node.js, Express |
+| Email Provider | SendGrid (`@sendgrid/mail`) |
+| Data Source | ThingSpeak REST API |
+| Config | dotenv |
 
-- Frontend: HTML, CSS, JavaScript, Chart.js
-- Backend: Node.js, Express
-- Email Provider: SendGrid (`@sendgrid/mail`)
-- Config: dotenv
+---
 
-## System Architecture
+## 🏗️ System Architecture
 
-- Data source layer:
-  - ThingSpeak public channel APIs provide the latest feed data.
-  - The client fetches multiple channels and normalizes field values.
-- Presentation layer:
-  - Chart.js renders temperature, humidity, moisture, and PIR trends.
-  - Metric cards show latest values and out-of-range status.
-- Rules layer:
-  - Threshold engine evaluates whether temperature/humidity are below configured minimum values.
-  - Cooldown logic prevents repeated notifications in short intervals.
-- Notification layer:
-  - Frontend sends alert payloads to `POST /api/send-alert`.
-  - Backend validates payload and sends email through SendGrid API.
-  - Dynamic template variables are injected for consistent, branded alerts.
+```
+ThingSpeak API
+      │
+      ▼
+  Frontend (index.html + app.js)
+  ├── Fetches & normalizes multi-channel feed data
+  ├── Renders charts and metric cards via Chart.js
+  ├── Evaluates threshold breaches on each refresh cycle
+  └── POSTs alert payload to backend on breach
+      │
+      ▼
+  Backend (server.js — Express)
+  ├── Validates payload and recipient email
+  └── Sends email via SendGrid Dynamic Template
+      │
+      ▼
+  Recipient Inbox 📬
+```
 
-## Project Structure
+---
 
-- `index.html` - dashboard UI and threshold modal
-- `app.js` - frontend logic, ThingSpeak fetch, threshold checks, alert API calls
-- `server.js` - Express server and `/api/send-alert` endpoint
-- `tests/trigger-email.test.js` - script to trigger a real email alert
-- `.env` - environment variables (not committed)
+## 📁 Project Structure
 
-## Environment Variables
+```
+iot-threshold-email-alert-dashboard/
+│
+├── index.html                    # Dashboard UI and threshold modal
+├── app.js                        # Frontend logic: ThingSpeak fetch, threshold checks, alert calls
+├── server.js                     # Express server and /api/send-alert endpoint
+├── tests/
+│   └── trigger-email.test.js     # Script to trigger and verify a real email alert
+├── .env                          # Environment variables (not committed)
+└── README.md
+```
+
+---
+
+## ⚙️ Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/anishonly121/iot-threshold-email-alert-dashboard.git
+cd iot-threshold-email-alert-dashboard
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure Environment Variables
 
 Create a `.env` file in the project root:
 
@@ -74,100 +99,111 @@ ALERT_TEST_TO_EMAIL=recipient@example.com
 PORT=3000
 ```
 
-## Setup
+> ⚠️ `SENDGRID_FROM_EMAIL` must be a verified sender in your SendGrid account.
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+### 4. Start the Server
 
-2. Start server:
-   ```bash
-   npm start
-   ```
+```bash
+npm start
+```
 
-3. Open:
-   - `http://localhost:3000`
+Open your browser at `http://localhost:3000`
 
-## End-to-End Flow
+---
 
-1. User opens dashboard and sets threshold values in the modal.
-2. Dashboard polls ThingSpeak feeds at the configured refresh interval.
-3. Latest values are parsed and visualized in charts/metric cards.
-4. Breach detector checks whether temperature/humidity drop below minimum threshold.
-5. On breach (and if cooldown allows), frontend sends alert payload to backend.
-6. Backend validates request and calls SendGrid with dynamic template data.
-7. Recipient receives an email containing metric, value, threshold, device, and timestamp.
-8. Alert state is persisted locally to avoid duplicate spam behavior.
+## 🔄 End-to-End Flow
 
-## Running Email Trigger Test
+1. User opens the dashboard and sets threshold values via the modal
+2. Dashboard polls ThingSpeak feeds at a configured refresh interval
+3. Latest values are parsed and rendered in charts and metric cards
+4. Breach detector checks whether temperature or humidity drops below the minimum threshold
+5. On breach (and if cooldown allows), frontend sends alert payload to the backend
+6. Backend validates the request and calls SendGrid with dynamic template data
+7. Recipient receives a structured email with metric, value, threshold, device, and timestamp
+8. Alert state is persisted locally to prevent duplicate notifications
 
-This sends a real alert payload to the backend endpoint:
+---
+
+## 📧 SendGrid Template — Dynamic Fields
+
+Your SendGrid template must reference these exact keys:
+
+| Field | Description |
+|---|---|
+| `metric` | Sensor type (e.g. `Temperature` or `Humidity`) |
+| `value` | Observed sensor reading at breach time |
+| `threshold` | Configured minimum threshold |
+| `condition` | Breach description (e.g. `below minimum`) |
+| `device` | Device context (e.g. `Raspberry #1`) |
+| `time` | Localized timestamp string |
+
+---
+
+## 🧪 Running the Email Trigger Test
+
+To send a real alert payload to the backend and verify delivery:
 
 ```bash
 npm run test:email
 ```
 
-## Alert Logic
+---
 
-- Alerts are evaluated on dashboard refresh cycles.
-- Condition: value is **below** configured minimum threshold.
-- Emails are rate-limited by cooldown (`cooldownMinutes` in frontend state).
-- A new breach after recovery can trigger immediately.
+## ⚡ Alert Logic
 
-## Email Template Data Contract
+- Evaluated on each dashboard refresh cycle
+- Condition: reading is **below** the configured minimum threshold
+- Emails are rate-limited by a configurable `cooldownMinutes` value
+- A new breach after recovery can trigger immediately
 
-The backend provides these dynamic fields to SendGrid:
+---
 
-- `metric`: sensor type (`Temperature` or `Humidity`)
-- `value`: observed sensor reading at breach time
-- `threshold`: minimum configured threshold
-- `condition`: breach description (`below minimum`)
-- `device`: selected device context (for example `Raspberry #1`)
-- `time`: localized timestamp string
+## 🔒 Security & Reliability
 
-Your SendGrid dynamic template should reference these keys exactly.
+- All secrets stored server-side in `.env` — never exposed to the client
+- Input validation checks recipient email format before sending
+- Backend returns explicit error messages to aid debugging
+- Cooldown logic reduces notification noise and alert storms
 
-## Reliability and Safety Considerations
+---
 
-- Secrets are stored server-side in `.env` and not exposed in frontend code.
-- Input validation checks recipient email format before sending.
-- Backend returns explicit failure messages to aid debugging.
-- Cooldown reduces notification noise and repeated alert storms.
-- Local storage persists thresholds and recipient settings across browser sessions.
+## ⚠️ Known Limitations
 
-## Limitations
+- Single-user, browser-local settings (resets if local storage is cleared)
+- Breach logic covers only below-minimum thresholds for temperature and humidity
+- No persistent database; delivery tracking (opened/bounced) not yet in-app
 
-- Current implementation is single-user and browser-local for settings.
-- Breach logic currently covers only below-min thresholds for temperature/humidity.
-- No persistent database is used; state resets when local storage is cleared.
-- Delivery tracking (opened, bounced, deferred) is not yet persisted in-app.
+---
 
-## Use Cases
+## 🔮 Future Improvements
 
-- Home/greenhouse environmental monitoring
-- Small server room humidity/temperature monitoring
-- Remote sensor watch with lightweight alerting
-- Student/academic IoT prototype showcasing full data-to-alert pipeline
+- [ ] Per-user authentication and per-device alert profiles
+- [ ] Retry/backoff logic and delivery status logging
+- [ ] Deployment config for Render / Railway / Vercel
+- [ ] Alert history UI with acknowledgment workflow
+- [ ] Unit and integration tests for threshold and cooldown logic
+- [ ] Configurable channel/metric mappings from the UI
+- [ ] Webhook, SMS, and Telegram notification channels
 
-## Notes
+---
 
-- Keep `.env` private and never commit secrets.
-- `SENDGRID_FROM_EMAIL` must be verified in SendGrid.
-- Ensure your SendGrid template is active and includes these dynamic variables:
-  - `metric`
-  - `value`
-  - `threshold`
-  - `condition`
-  - `device`
-  - `time`
+## 🌐 Use Cases
 
-## Future Improvements
+- Home or greenhouse environmental monitoring
+- Small server room temperature and humidity tracking
+- Remote sensor watching with lightweight alerting
+- Academic IoT prototype demonstrating a full data-to-alert pipeline
 
-- Add per-user authentication and per-device alert profiles
-- Add retry/backoff and delivery status logging
-- Add deployment config (Render/Railway/Vercel + backend service)
-- Add unit/integration tests for threshold and cooldown behavior
-- Add alert history UI and acknowledgment workflow
-- Add configurable channels and metric mappings from UI
-- Add webhook/SMS/Telegram channels in addition to email
+---
+
+## 🙋 Author
+
+**Anish**
+- GitHub: [@anishonly121](https://github.com/anishonly121)
+- LinkedIn: _[Add your LinkedIn URL here]_
+
+---
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
