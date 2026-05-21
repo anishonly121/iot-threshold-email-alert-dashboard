@@ -1,12 +1,17 @@
 # 🌡️ IoT Threshold Email Alert Dashboard
 
-A web-based IoT monitoring dashboard that reads live sensor data from **ThingSpeak** and sends automated email alerts via **SendGrid** when temperature or humidity drops below user-defined thresholds.
+> Real-time IoT sensor monitoring with automated email alerts — built with ThingSpeak, Chart.js, Node.js, and SendGrid.
+
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)
+![Chart.js](https://img.shields.io/badge/Chart.js-FF6384?style=flat&logo=chartdotjs&logoColor=white)
+![SendGrid](https://img.shields.io/badge/SendGrid-1A82E2?style=flat&logo=sendgrid&logoColor=white)
 
 ---
 
 ## 📸 Demo
 
-> _Add a screenshot or screen recording of your dashboard here_
+![IoT Dashboard](assets/screenshot.png)
 
 ---
 
@@ -18,6 +23,7 @@ A web-based IoT monitoring dashboard that reads live sensor data from **ThingSpe
 - 📧 **Automated Email Alerts** — SendGrid dynamic templates deliver structured breach notifications
 - 🔇 **Alert Cooldown** — Rate-limiting prevents repeated notification spam
 - 💾 **Local Persistence** — Thresholds and recipient settings saved across browser sessions
+- 🔒 **Secrets Stay Server-Side** — API keys never touch the browser
 
 ---
 
@@ -66,6 +72,8 @@ iot-threshold-email-alert-dashboard/
 ├── server.js                     # Express server and /api/send-alert endpoint
 ├── tests/
 │   └── trigger-email.test.js     # Script to trigger and verify a real email alert
+├── assets/
+│   └── screenshot.png            # Dashboard preview
 ├── .env                          # Environment variables (not committed)
 └── README.md
 ```
@@ -90,7 +98,6 @@ npm install
 ### 3. Configure Environment Variables
 
 Create a `.env` file in the project root:
-
 ```env
 SENDGRID_API_KEY=your_sendgrid_api_key
 SENDGRID_FROM_EMAIL=verified_sender@example.com
