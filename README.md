@@ -209,7 +209,7 @@ npm run test:email
 
 **Anish**
 - GitHub: [@anishonly121](https://github.com/anishonly121)
-- LinkedIn: _[Add your LinkedIn URL here]_
+- LinkedIn: [linkedin.com/in/anishbhole](https://www.linkedin.com/in/anishbhole/)
 
 ---
 
