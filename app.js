@@ -155,8 +155,7 @@ function getMetricLabel(type) {
   return type;
 }
 
-function getBreachLabel(breach) {
-  if (breach === 'below_min') return 'below minimum';
+function getBreachLabel() {
   return 'below minimum';
 }
 
@@ -225,16 +224,16 @@ async function handleThresholdAlerts(latestTemp, latestHumi, fieldNum) {
       const formattedValue = check.type === 'temp' ? check.value.toFixed(1) : check.value.toFixed(0);
       const thresholdValue = thresholds[check.type].min;
 
-      alert(`${metricLabel} is below threshold (${formattedValue} < ${thresholdValue}). Sending alert email to ${emailAlerts.toEmail}...`);
+      showToast(`${metricLabel} below threshold (${formattedValue} < ${thresholdValue}) — sending alert...`, 'warning');
 
       await sendEmailAlert(check.type, check.value, breach, fieldNum);
       alertState[stateKey] = { breach, lastSentAt: now };
-      setStatus(`Alert sent: ${getMetricLabel(check.type)} ${getBreachLabel(breach)}`);
-      alert(`Alert email sent to ${emailAlerts.toEmail}.`);
+      setStatus(`Alert sent: ${metricLabel} ${getBreachLabel()}`);
+      showToast(`Alert email sent to ${emailAlerts.toEmail}`, 'success');
     } catch (err) {
       console.error('Failed to send email alert:', err);
       setStatus(`Alert email failed: ${err.message}`, true);
-      alert(`Email failed: ${err.message}`);
+      showToast(`Email failed: ${err.message}`, 'error');
     }
   }
 
@@ -635,16 +634,17 @@ function saveThresholds() {
   
   // Validate min < max
   if (thresholds.temp.min !== null && thresholds.temp.max !== null && thresholds.temp.min >= thresholds.temp.max) {
-    alert('Temperature minimum must be less than maximum');
+    showToast('Temperature minimum must be less than maximum', 'error');
     return;
   }
-  
+
   if (thresholds.humi.min !== null && thresholds.humi.max !== null && thresholds.humi.min >= thresholds.humi.max) {
-    alert('Humidity minimum must be less than maximum');
+    showToast('Humidity minimum must be less than maximum', 'error');
     return;
   }
+
   if (toEmail && !isValidEmail(toEmail)) {
-    alert('Please enter a valid recipient email address.');
+    showToast('Please enter a valid recipient email address', 'error');
     return;
   }
 
@@ -658,48 +658,49 @@ function saveThresholds() {
   // Refresh charts to show new thresholds
   refreshDashboard();
   
-  // Close modal
   closeThresholdModal();
-  
-  // Show success message
   setStatus('Thresholds updated');
-  console.log('Thresholds saved:', thresholds);
+  showToast('Thresholds saved', 'success');
 }
 
 function resetThresholds() {
-  if (confirm('Reset all thresholds to default (no limits)?')) {
-    thresholds = {
-      temp: { min: null, max: null },
-      humi: { min: null, max: null }
-    };
-    
-    saveThresholdsToStorage();
-    
-    // Clear input fields
-    document.getElementById('tempMin').value = '';
-    document.getElementById('tempMax').value = '';
-    document.getElementById('humiMin').value = '';
-    document.getElementById('humiMax').value = '';
-    
-    // Refresh charts
-    refreshDashboard();
-    
-    setStatus('Thresholds reset');
-    console.log('Thresholds reset');
-  }
+  thresholds = { temp: { min: null, max: null }, humi: { min: null, max: null } };
+  saveThresholdsToStorage();
+
+  document.getElementById('tempMin').value = '';
+  document.getElementById('tempMax').value = '';
+  document.getElementById('humiMin').value = '';
+  document.getElementById('humiMax').value = '';
+
+  refreshDashboard();
+  setStatus('Thresholds reset');
+  showToast('Thresholds reset to default', 'info');
+}
+
+// --------------------- Toast Notifications ---------------------
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+
+  const icons = {
+    success: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+    error:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
+    warning: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`,
+    info:    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`
+  };
+
+  toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
 }
 
 // --------------------- Start ---------------------
 function init() {
-  // Add CSS transitions for metric values
-  const style = document.createElement('style');
-  style.textContent = `
-    .metric-value {
-      transition: opacity 0.15s ease, transform 0.15s ease;
-    }
-  `;
-  document.head.appendChild(style);
-  
   // Load thresholds from localStorage
   loadThresholds();
   loadEmailAlerts();
@@ -741,11 +742,6 @@ function init() {
   // Auto-refresh
   setInterval(refreshDashboard, AUTO_REFRESH_MS);
   
-  // Log ready state
-  console.log('IoT Dashboard initialized successfully');
-  console.log(`Monitoring ${Object.keys(CHANNELS).length} channels`);
-  console.log(`Auto-refresh interval: ${AUTO_REFRESH_MS / 1000}s`);
-  console.log('Current thresholds:', thresholds);
 }
 
 // Start when DOM is ready
