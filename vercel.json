@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/send-alert", "destination": "/api/send-alert" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
