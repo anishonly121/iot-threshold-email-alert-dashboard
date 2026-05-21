@@ -11,6 +11,8 @@
 
 ## 📸 Demo
 
+**🌐 Live:** [iot-dashboard-alerts.vercel.app](https://iot-dashboard-alerts.vercel.app)
+
 ![IoT Dashboard](assets/screenshot.png)
 
 ---
