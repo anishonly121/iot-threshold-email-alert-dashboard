@@ -1,4 +1,5 @@
 {
+  "outputDirectory": "public",
   "rewrites": [
     { "source": "/api/send-alert", "destination": "/api/send-alert" }
   ]
