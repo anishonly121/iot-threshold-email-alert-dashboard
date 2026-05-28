@@ -275,7 +275,7 @@ function createGradient(ctx, colorConfig) {
   return gradient;
 }
 
-function makeLineChart(canvasId, label, colorKey) {
+function makeLineChart(canvasId, label, colorKey, withSPC = false) {
   const canvas = document.getElementById(canvasId);
   const ctx = canvas.getContext('2d');
   const colorConfig = chartColors[colorKey];
@@ -302,27 +302,55 @@ function makeLineChart(canvasId, label, colorKey) {
         pointHoverBorderWidth: 3,
         segment: {
           borderColor: (ctx) => {
-            // Color segments red if they exceed thresholds
             if (colorKey !== 'temp' && colorKey !== 'humi') return colorConfig.border;
-            
-            const value = ctx.p1.parsed.y;
-            if (isOutOfRange(value, colorKey)) {
-              return 'rgba(252, 129, 129, 1)';
-            }
-            return colorConfig.border;
+            return isOutOfRange(ctx.p1.parsed.y, colorKey) ? 'rgba(252, 129, 129, 1)' : colorConfig.border;
           },
           backgroundColor: (ctx) => {
-            // Color background red if it exceeds thresholds
             if (colorKey !== 'temp' && colorKey !== 'humi') return createGradient(ctx.chart.ctx, colorConfig);
-            
-            const value = ctx.p1.parsed.y;
-            if (isOutOfRange(value, colorKey)) {
-              return 'rgba(252, 129, 129, 0.2)';
-            }
-            return createGradient(ctx.chart.ctx, colorConfig);
+            return isOutOfRange(ctx.p1.parsed.y, colorKey) ? 'rgba(252, 129, 129, 0.2)' : createGradient(ctx.chart.ctx, colorConfig);
           }
         }
-      }]
+      },
+      ...(withSPC ? [
+        {
+          label: 'EWMA',
+          data: [],
+          borderColor: 'rgba(255, 255, 255, 0.4)',
+          borderWidth: 1.5,
+          borderDash: [5, 3],
+          fill: false,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0.4,
+          order: 1
+        },
+        {
+          label: 'UCL 2σ',
+          data: [],
+          borderColor: colorConfig.border.replace('1)', '0.25)'),
+          borderWidth: 1,
+          borderDash: [3, 3],
+          backgroundColor: colorConfig.border.replace('1)', '0.07)'),
+          fill: '+1',
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0,
+          order: 0
+        },
+        {
+          label: 'LCL 2σ',
+          data: [],
+          borderColor: colorConfig.border.replace('1)', '0.25)'),
+          borderWidth: 1,
+          borderDash: [3, 3],
+          fill: false,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0,
+          order: 0
+        }
+      ] : [])
+    ]
     },
     options: {
       responsive: true,
@@ -340,6 +368,7 @@ function makeLineChart(canvasId, label, colorKey) {
           display: false
         },
         tooltip: {
+          filter: item => item.datasetIndex < 2,
           backgroundColor: 'rgba(15, 22, 36, 0.95)',
           titleColor: '#e8eef6',
           bodyColor: '#e8eef6',
@@ -487,10 +516,10 @@ function makeLineChart(canvasId, label, colorKey) {
 }
 
 function initCharts() {
-  tempChart = makeLineChart("tempChart", "Temperature (°C)", "temp");
-  humiChart = makeLineChart("humiChart", "Humidity (%)", "humi");
-  moisChart = makeLineChart("moisChart", "Moisture", "mois");
-  pirChart  = makeLineChart("pirChart", "Motion", "pir");
+  tempChart = makeLineChart("tempChart", "Temperature (°C)", "temp", true);
+  humiChart = makeLineChart("humiChart", "Humidity (%)",     "humi", true);
+  moisChart = makeLineChart("moisChart", "Moisture",         "mois");
+  pirChart  = makeLineChart("pirChart",  "Motion",           "pir");
 }
 
 // --------------------- UI ---------------------
@@ -554,13 +583,30 @@ async function refreshDashboard() {
     const moisSeries = parseFeedsToSeries(moisData, fieldNum);
     const pirSeries  = parseFeedsToSeries(pirData,  fieldNum);
 
-    // Update charts
+    // Compute SPC statistics
+    const tempStats  = rollingStats(tempSeries.values);
+    const humiStats  = rollingStats(humiSeries.values);
+    const tempBands  = buildControlBands(tempSeries.values, tempStats);
+    const humiBands  = buildControlBands(humiSeries.values, humiStats);
+    const tempZ      = getZScore(latestValue(tempSeries.values), tempStats);
+    const humiZ      = getZScore(latestValue(humiSeries.values), humiStats);
+    const correlation = pearsonCorrelation(tempSeries.values, humiSeries.values);
+    const sigmaEvents = countSigmaEvents(tempSeries.values, tempStats)
+                      + countSigmaEvents(humiSeries.values, humiStats);
+
+    // Update charts with SPC overlays
     tempChart.data.labels = tempSeries.labels;
     tempChart.data.datasets[0].data = tempSeries.values;
+    tempChart.data.datasets[1].data = computeEWMA(tempSeries.values);
+    tempChart.data.datasets[2].data = tempBands.upper;
+    tempChart.data.datasets[3].data = tempBands.lower;
     tempChart.update('active');
 
     humiChart.data.labels = humiSeries.labels;
     humiChart.data.datasets[0].data = humiSeries.values;
+    humiChart.data.datasets[1].data = computeEWMA(humiSeries.values);
+    humiChart.data.datasets[2].data = humiBands.upper;
+    humiChart.data.datasets[3].data = humiBands.lower;
     humiChart.update('active');
 
     moisChart.data.labels = moisSeries.labels;
@@ -588,7 +634,9 @@ async function refreshDashboard() {
     previousValues.temp = latestTemp;
     previousValues.humi = latestHumi;
 
-    runInsights(tempSeries, humiSeries, moisSeries, pirSeries, latestTemp, latestHumi, latestMois, latestPir, fieldNum);
+    runInsights(tempSeries, humiSeries, moisSeries, pirSeries,
+                latestTemp, latestHumi, latestMois, latestPir, fieldNum,
+                tempStats, humiStats, tempZ, humiZ, correlation, sigmaEvents);
 
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setStatus(`Updated at ${now}`);
@@ -685,6 +733,65 @@ function resetThresholds() {
   showToast('Thresholds reset to default', 'info');
 }
 
+// =====================
+// STATISTICAL PROCESS CONTROL ENGINE
+// =====================
+
+function rollingStats(values) {
+  const valid = values.filter(v => v !== null && !isNaN(v));
+  if (valid.length < 2) return { mean: null, stdDev: null, n: valid.length };
+  const n = valid.length;
+  const mean = valid.reduce((a, b) => a + b, 0) / n;
+  const variance = valid.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / (n - 1);
+  return { mean: Math.round(mean * 100) / 100, stdDev: Math.round(Math.sqrt(variance) * 100) / 100, n };
+}
+
+function computeEWMA(values, lambda = 0.3) {
+  const result = new Array(values.length).fill(null);
+  let ewma = null;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v === null || isNaN(v)) { result[i] = ewma; continue; }
+    ewma = ewma === null ? v : lambda * v + (1 - lambda) * ewma;
+    result[i] = Math.round(ewma * 100) / 100;
+  }
+  return result;
+}
+
+function buildControlBands(values, stats, sigma = 2) {
+  if (stats.mean === null || stats.stdDev === null) {
+    return { upper: new Array(values.length).fill(null), lower: new Array(values.length).fill(null) };
+  }
+  return {
+    upper: values.map(v => v !== null ? Math.round((stats.mean + sigma * stats.stdDev) * 10) / 10 : null),
+    lower: values.map(v => v !== null ? Math.round((stats.mean - sigma * stats.stdDev) * 10) / 10 : null)
+  };
+}
+
+function pearsonCorrelation(xs, ys) {
+  const pairs = xs.map((x, i) => [x, ys[i]])
+    .filter(([x, y]) => x !== null && y !== null && !isNaN(x) && !isNaN(y));
+  if (pairs.length < 4) return null;
+  const n = pairs.length;
+  const meanX = pairs.reduce((a, [x])    => a + x, 0) / n;
+  const meanY = pairs.reduce((a, [, y])  => a + y, 0) / n;
+  const num   = pairs.reduce((a, [x, y]) => a + (x - meanX) * (y - meanY), 0);
+  const denX  = Math.sqrt(pairs.reduce((a, [x])   => a + Math.pow(x - meanX, 2), 0));
+  const denY  = Math.sqrt(pairs.reduce((a, [, y]) => a + Math.pow(y - meanY, 2), 0));
+  if (denX === 0 || denY === 0) return null;
+  return Math.round((num / (denX * denY)) * 100) / 100;
+}
+
+function getZScore(value, stats) {
+  if (value === null || stats.mean === null || !stats.stdDev) return null;
+  return Math.round(((value - stats.mean) / stats.stdDev) * 10) / 10;
+}
+
+function countSigmaEvents(values, stats, threshold = 2) {
+  if (stats.mean === null || !stats.stdDev) return 0;
+  return values.filter(v => v !== null && !isNaN(v) && Math.abs(v - stats.mean) > threshold * stats.stdDev).length;
+}
+
 // --------------------- Intelligence Engine ---------------------
 const CIRCUMFERENCE = 314;
 let previousValues = { temp: null, humi: null };
@@ -739,11 +846,19 @@ function predictBreach(values, threshold, direction) {
 }
 
 function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
-                          latestTemp, latestHumi, latestMois, latestPir, fieldNum) {
+                          latestTemp, latestHumi, latestMois, latestPir, fieldNum,
+                          tempStats, humiStats, tempZ, humiZ, correlation) {
   const tempScore = scoreMetric(tempSeries.values, thresholds.temp);
   const humiScore = scoreMetric(humiSeries.values, thresholds.humi);
   const dataScore = (latestTemp !== null && latestHumi !== null) ? 100 : 50;
-  const healthScore = Math.round(tempScore * 0.4 + humiScore * 0.4 + dataScore * 0.2);
+
+  const tempZPenalty = tempZ !== null ? Math.min(25, Math.max(0, (Math.abs(tempZ) - 1.5) * 12)) : 0;
+  const humiZPenalty = humiZ !== null ? Math.min(25, Math.max(0, (Math.abs(humiZ) - 1.5) * 12)) : 0;
+  const corrPenalty  = correlation !== null && Math.abs(correlation) < 0.3 ? 10 : 0;
+
+  const healthScore = Math.round(Math.max(0,
+    tempScore * 0.38 + humiScore * 0.38 + dataScore * 0.14 - tempZPenalty * 0.5 - humiZPenalty * 0.5 - corrPenalty
+  ));
 
   const healthLabel =
     healthScore >= 90 ? 'Excellent' :
@@ -767,26 +882,30 @@ function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
 
   const observations = [];
 
-  // Temperature observation
+  // Temperature observation — Z-score aware
   if (latestTemp === null) {
-    observations.push('No temperature data available from ThingSpeak');
+    observations.push('No temperature data received from ThingSpeak');
+  } else if (tempZ !== null && Math.abs(tempZ) > 2.5) {
+    observations.push(`Temperature is ${Math.abs(tempZ).toFixed(1)}σ ${tempZ < 0 ? 'below' : 'above'} rolling mean — statistically anomalous`);
   } else if (isOutOfRange(latestTemp, 'temp')) {
-    observations.push(`⚠ Temperature ${latestTemp.toFixed(1)}°C is outside your configured range`);
+    observations.push(`Temperature ${latestTemp.toFixed(1)}°C is outside configured range`);
   } else if (breachCandidates.find(b => b.key === 'tempMin')) {
     const m = breachCandidates.find(b => b.key === 'tempMin').mins;
     observations.push(`Temperature falling — threshold breach predicted in ~${m} min`);
   } else if (Math.abs(tempSlope) > 0.15) {
     const dir = tempSlope > 0 ? 'rising' : 'falling';
-    observations.push(`Temperature ${dir} at ${Math.abs(tempSlope).toFixed(2)}°C per reading — currently ${latestTemp.toFixed(1)}°C`);
+    observations.push(`Temperature ${dir} at ${Math.abs(tempSlope).toFixed(2)}°C/reading — currently ${latestTemp.toFixed(1)}°C`);
   } else {
-    observations.push(`Temperature stable at ${latestTemp.toFixed(1)}°C — no action needed`);
+    observations.push(`Temperature stable at ${latestTemp.toFixed(1)}°C — within normal range`);
   }
 
-  // Humidity observation
+  // Humidity observation — Z-score aware
   if (latestHumi === null) {
-    observations.push('No humidity data available from ThingSpeak');
+    observations.push('No humidity data received from ThingSpeak');
+  } else if (humiZ !== null && Math.abs(humiZ) > 2.5) {
+    observations.push(`Humidity is ${Math.abs(humiZ).toFixed(1)}σ ${humiZ < 0 ? 'below' : 'above'} rolling mean — statistically anomalous`);
   } else if (isOutOfRange(latestHumi, 'humi')) {
-    observations.push(`⚠ Humidity ${latestHumi.toFixed(0)}% is outside your configured range`);
+    observations.push(`Humidity ${latestHumi.toFixed(0)}% is outside configured range`);
   } else if (breachCandidates.find(b => b.key === 'humiMin')) {
     const m = breachCandidates.find(b => b.key === 'humiMin').mins;
     observations.push(`Humidity declining — threshold breach predicted in ~${m} min`);
@@ -797,20 +916,22 @@ function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
     observations.push(`Humidity stable at ${latestHumi.toFixed(0)}% — within normal range`);
   }
 
-  // Moisture + Motion combined observation
+  // Correlation + moisture/motion observation
   const mois = latestMois === 1 ? 'Wet' : latestMois === 0 ? 'Dry' : null;
   const pir  = latestPir  === 1 ? 'active' : latestPir  === 0 ? 'inactive' : null;
 
-  if (mois === 'Dry' && pir === 'inactive') {
+  if (correlation !== null && Math.abs(correlation) < 0.3) {
+    observations.push(`T-H correlation breakdown (r=${correlation}) — possible environmental event or sensor fault`);
+  } else if (mois === 'Dry' && pir === 'inactive') {
     observations.push('Soil moisture low and no motion detected — environment is idle');
   } else if (mois === 'Dry') {
     observations.push('Soil moisture is low — consider watering soon');
   } else if (pir === 'active') {
-    observations.push('Motion detected — activity present in the monitored area');
+    observations.push('Motion detected — activity present in monitored area');
   } else if (mois === 'Wet') {
-    observations.push('Soil moisture is adequate — no irrigation needed');
+    observations.push('Soil moisture adequate — no irrigation needed');
   } else {
-    observations.push('Motion and moisture sensors reading normally');
+    observations.push('All sensors reading within expected parameters');
   }
 
   return { healthScore, healthLabel, predictedBreach, observations };
@@ -865,13 +986,54 @@ function updateInsightsPanel(insights) {
   setAIStatus(`Updated ${now}`);
 }
 
+function updateStatsStrip(tempStats, humiStats, tempZ, humiZ, correlation, sigmaEvents) {
+  function set(id, val, dec = 2) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val !== null ? (typeof val === 'number' ? val.toFixed(dec) : val) : '—';
+  }
+  function colorZ(id, z) {
+    const el = document.getElementById(id);
+    if (!el || z === null) return;
+    const a = Math.abs(z);
+    el.style.color = a > 3 ? '#fc8181' : a > 2 ? '#ed8936' : a > 1 ? '#fbd38d' : '#68d391';
+  }
+  function colorR(id, r) {
+    const el = document.getElementById(id);
+    if (!el || r === null) return;
+    const a = Math.abs(r);
+    el.style.color = a > 0.7 ? '#68d391' : a > 0.3 ? '#fbd38d' : '#fc8181';
+  }
+  function colorSigma(id, n) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.color = n > 5 ? '#fc8181' : n > 2 ? '#fbd38d' : '#68d391';
+  }
+
+  set('statTempMean',   tempStats.mean,   1);
+  set('statTempStdDev', tempStats.stdDev, 2);
+  set('statTempZ',      tempZ,            1);
+  set('statHumiMean',   humiStats.mean,   1);
+  set('statHumiStdDev', humiStats.stdDev, 2);
+  set('statHumiZ',      humiZ,            1);
+  set('statCorr',       correlation,      2);
+  set('statSigmaEvents', sigmaEvents,     0);
+
+  colorZ('statTempZ', tempZ);
+  colorZ('statHumiZ', humiZ);
+  colorR('statCorr', correlation);
+  colorSigma('statSigmaEvents', sigmaEvents);
+}
+
 function runInsights(tempSeries, humiSeries, moisSeries, pirSeries,
-                     latestTemp, latestHumi, latestMois, latestPir, fieldNum) {
+                     latestTemp, latestHumi, latestMois, latestPir, fieldNum,
+                     tempStats, humiStats, tempZ, humiZ, correlation, sigmaEvents) {
   const insights = computeInsights(
     tempSeries, humiSeries, moisSeries, pirSeries,
-    latestTemp, latestHumi, latestMois, latestPir, fieldNum
+    latestTemp, latestHumi, latestMois, latestPir, fieldNum,
+    tempStats, humiStats, tempZ, humiZ, correlation
   );
   updateInsightsPanel(insights);
+  updateStatsStrip(tempStats, humiStats, tempZ, humiZ, correlation, sigmaEvents);
 }
 
 // --------------------- Trend Arrows ---------------------
