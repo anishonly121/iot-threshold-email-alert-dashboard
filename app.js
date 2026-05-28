@@ -585,6 +585,8 @@ async function refreshDashboard() {
 
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setStatus(`Updated at ${now}`);
+
+    fetchInsights(tempSeries, humiSeries, moisSeries, pirSeries, latestTemp, latestHumi, latestMois, latestPir, fieldNum);
   } catch (err) {
     console.error('Dashboard refresh error:', err);
     setStatus("Error loading data", true);
@@ -675,6 +677,100 @@ function resetThresholds() {
   refreshDashboard();
   setStatus('Thresholds reset');
   showToast('Thresholds reset to default', 'info');
+}
+
+// --------------------- AI Insights ---------------------
+const CIRCUMFERENCE = 314;
+
+function setAIStatus(text) {
+  const el = document.getElementById('aiStatus');
+  if (el) el.textContent = text;
+}
+
+function setAILoading() {
+  setAIStatus('Analyzing...');
+  const obsEl = document.getElementById('observations');
+  if (obsEl) {
+    obsEl.innerHTML = `
+      <li class="obs-skeleton"></li>
+      <li class="obs-skeleton"></li>
+      <li class="obs-skeleton"></li>
+    `;
+  }
+}
+
+function updateInsightsPanel(insights) {
+  const { healthScore, healthLabel, predictedBreach, observations } = insights;
+
+  const scoreEl  = document.getElementById('healthScore');
+  const labelEl  = document.getElementById('healthLabel');
+  const fillEl   = document.getElementById('healthFill');
+  const breachEl = document.getElementById('breachWarning');
+  const breachTextEl = document.getElementById('breachText');
+  const obsEl    = document.getElementById('observations');
+
+  if (scoreEl) scoreEl.textContent = healthScore;
+  if (labelEl) labelEl.textContent = healthLabel;
+
+  const color =
+    healthScore >= 90 ? '#48bb78' :
+    healthScore >= 70 ? '#63b3ed' :
+    healthScore >= 50 ? '#fbd38d' :
+    healthScore >= 30 ? '#ed8936' : '#fc8181';
+
+  if (fillEl) {
+    fillEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - healthScore / 100);
+    fillEl.style.stroke = color;
+  }
+  if (scoreEl) scoreEl.style.color = color;
+
+  if (breachEl && breachTextEl) {
+    if (predictedBreach) {
+      breachEl.classList.add('visible');
+      breachTextEl.textContent = predictedBreach;
+    } else {
+      breachEl.classList.remove('visible');
+    }
+  }
+
+  if (obsEl && observations) {
+    obsEl.innerHTML = observations
+      .map((obs, i) => `<li style="animation-delay:${i * 0.1}s">${obs}</li>`)
+      .join('');
+  }
+
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  setAIStatus(`Updated ${now}`);
+}
+
+async function fetchInsights(tempSeries, humiSeries, moisSeries, pirSeries, latestTemp, latestHumi, latestMois, latestPir, fieldNum) {
+  setAILoading();
+
+  try {
+    const res = await fetch('/api/insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sensors: {
+          temperature: { values: tempSeries.values, labels: tempSeries.labels, latest: latestTemp },
+          humidity:    { values: humiSeries.values,  labels: humiSeries.labels,  latest: latestHumi },
+          moisture:    { values: moisSeries.values,  labels: moisSeries.labels,  latest: latestMois },
+          motion:      { values: pirSeries.values,   labels: pirSeries.labels,   latest: latestPir  }
+        },
+        thresholds,
+        device: `Raspberry #${fieldNum}`
+      })
+    });
+
+    if (!res.ok) throw new Error(`${res.status}`);
+    const insights = await res.json();
+    updateInsightsPanel(insights);
+  } catch (err) {
+    console.error('AI insights failed:', err.message);
+    setAIStatus('Unavailable');
+    const obsEl = document.getElementById('observations');
+    if (obsEl) obsEl.innerHTML = `<li style="color:#718096">AI insights temporarily unavailable</li>`;
+  }
 }
 
 // --------------------- Toast Notifications ---------------------

@@ -8,6 +8,7 @@
         "test:email": "node tests/trigger-email.test.js"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.99.0",
         "@sendgrid/mail": "^8.1.6",
         "dotenv": "^16.4.7",
         "express": "^4.21.2"

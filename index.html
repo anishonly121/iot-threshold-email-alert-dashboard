@@ -130,6 +130,53 @@
       </div>
     </header>
 
+    <!-- AI Insights Panel -->
+    <div class="ai-panel" id="aiPanel">
+      <div class="ai-panel-header">
+        <div class="ai-title">
+          <span class="ai-badge">AI</span>
+          <h2>Environmental Intelligence</h2>
+        </div>
+        <div class="ai-meta">
+          <span class="ai-powered">Powered by Claude</span>
+          <span class="ai-status" id="aiStatus">Analyzing...</span>
+        </div>
+      </div>
+
+      <div class="ai-body">
+        <div class="health-score-section">
+          <div class="health-ring">
+            <svg viewBox="0 0 120 120" class="health-svg">
+              <circle cx="60" cy="60" r="50" class="health-track"/>
+              <circle cx="60" cy="60" r="50" class="health-fill" id="healthFill"/>
+            </svg>
+            <div class="health-center">
+              <div class="health-number" id="healthScore">—</div>
+              <div class="health-label" id="healthLabel">Loading</div>
+            </div>
+          </div>
+          <div class="health-caption">Environment Health</div>
+        </div>
+
+        <div class="ai-insights-section">
+          <div class="breach-warning" id="breachWarning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span id="breachText"></span>
+          </div>
+
+          <ul class="observations" id="observations">
+            <li class="obs-skeleton"></li>
+            <li class="obs-skeleton"></li>
+            <li class="obs-skeleton"></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
     <main class="charts-grid">
       <section class="chart-panel">
         <div class="panel-header">
