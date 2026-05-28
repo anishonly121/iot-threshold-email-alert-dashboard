@@ -387,6 +387,37 @@ main.charts-grid {
   border-bottom: 1px solid rgba(99, 179, 237, 0.1);
 }
 
+.panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #718096;
+  font-weight: 500;
+}
+
+.legend-ewma {
+  display: inline-block;
+  width: 18px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,0.4) 0, rgba(255,255,255,0.4) 5px, transparent 5px, transparent 8px);
+}
+
+.legend-band {
+  display: inline-block;
+  width: 18px;
+  height: 8px;
+  background: rgba(99, 179, 237, 0.15);
+  border: 1px dashed rgba(99, 179, 237, 0.3);
+  border-radius: 2px;
+}
+
 .panel-header h2 {
   font-size: 18px;
   font-weight: 700;
@@ -1052,6 +1083,69 @@ footer {
 @keyframes skeletonPulse {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+/* Stats Strip */
+.stats-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-top: 18px;
+  margin-top: 18px;
+  border-top: 1px solid rgba(99, 179, 237, 0.1);
+}
+
+.stat-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-right: 2px;
+}
+
+.stat-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 10px;
+  background: rgba(15, 22, 36, 0.6);
+  border: 1px solid rgba(99, 179, 237, 0.1);
+  border-radius: 7px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #4a5568;
+  font-weight: 600;
+  font-style: italic;
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8eef6;
+  transition: color 0.4s ease;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-unit {
+  font-size: 10px;
+  color: #4a5568;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(99, 179, 237, 0.1);
+  flex-shrink: 0;
 }
 
 @media (max-width: 900px) {

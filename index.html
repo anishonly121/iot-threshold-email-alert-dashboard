@@ -185,6 +185,54 @@
           </ul>
         </div>
       </div>
+
+      <div class="stats-strip">
+        <div class="stat-group">
+          <span class="stat-group-label">Temperature</span>
+          <div class="stat-chip">
+            <span class="stat-label">μ</span>
+            <span class="stat-value" id="statTempMean">—</span>
+            <span class="stat-unit">°C</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">σ</span>
+            <span class="stat-value" id="statTempStdDev">—</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Z</span>
+            <span class="stat-value" id="statTempZ">—</span>
+          </div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-group">
+          <span class="stat-group-label">Humidity</span>
+          <div class="stat-chip">
+            <span class="stat-label">μ</span>
+            <span class="stat-value" id="statHumiMean">—</span>
+            <span class="stat-unit">%</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">σ</span>
+            <span class="stat-value" id="statHumiStdDev">—</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">Z</span>
+            <span class="stat-value" id="statHumiZ">—</span>
+          </div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-group">
+          <span class="stat-group-label">Process</span>
+          <div class="stat-chip">
+            <span class="stat-label">T-H Correlation</span>
+            <span class="stat-value" id="statCorr">—</span>
+          </div>
+          <div class="stat-chip">
+            <span class="stat-label">2σ Events</span>
+            <span class="stat-value" id="statSigmaEvents">—</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <main class="charts-grid">
@@ -196,7 +244,11 @@
             </svg>
             Temperature
           </h2>
-          <span class="panel-badge">°C</span>
+          <div class="panel-header-right">
+            <span class="chart-legend-item"><span class="legend-ewma"></span>EWMA</span>
+            <span class="chart-legend-item"><span class="legend-band"></span>2σ Band</span>
+            <span class="panel-badge">°C</span>
+          </div>
         </div>
         <div class="chart-container">
           <canvas id="tempChart"></canvas>
@@ -211,7 +263,11 @@
             </svg>
             Humidity
           </h2>
-          <span class="panel-badge">%</span>
+          <div class="panel-header-right">
+            <span class="chart-legend-item"><span class="legend-ewma"></span>EWMA</span>
+            <span class="chart-legend-item"><span class="legend-band"></span>2σ Band</span>
+            <span class="panel-badge">%</span>
+          </div>
         </div>
         <div class="chart-container">
           <canvas id="humiChart"></canvas>
