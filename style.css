@@ -325,6 +325,30 @@ button.btn-refresh:hover .icon-refresh {
   font-weight: 500;
 }
 
+.metric-value-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trend-arrow {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  transition: all 0.3s ease;
+}
+
+.trend-arrow.up   { color: #48bb78; }
+.trend-arrow.down { color: #fc8181; }
+
+#countdown {
+  font-weight: 700;
+  color: #63b3ed;
+  transition: color 0.3s ease;
+}
+
+#countdown.urgent { color: #fc8181; }
+
 /* ===================== */
 /* CHARTS GRID           */
 /* ===================== */
