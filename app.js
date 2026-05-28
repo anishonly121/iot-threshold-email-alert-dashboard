@@ -583,10 +583,16 @@ async function refreshDashboard() {
     updateLatestValue(latestPirEl, latestPir, 'pir');
     await handleThresholdAlerts(latestTemp, latestHumi, fieldNum);
 
+    updateTrendArrow('trendTemp', latestTemp, previousValues.temp);
+    updateTrendArrow('trendHumi', latestHumi, previousValues.humi);
+    previousValues.temp = latestTemp;
+    previousValues.humi = latestHumi;
+
+    runInsights(tempSeries, humiSeries, moisSeries, pirSeries, latestTemp, latestHumi, latestMois, latestPir, fieldNum);
+
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setStatus(`Updated at ${now}`);
-
-    fetchInsights(tempSeries, humiSeries, moisSeries, pirSeries, latestTemp, latestHumi, latestMois, latestPir, fieldNum);
+    startCountdown();
   } catch (err) {
     console.error('Dashboard refresh error:', err);
     setStatus("Error loading data", true);
@@ -679,44 +685,160 @@ function resetThresholds() {
   showToast('Thresholds reset to default', 'info');
 }
 
-// --------------------- AI Insights ---------------------
+// --------------------- Intelligence Engine ---------------------
 const CIRCUMFERENCE = 314;
+let previousValues = { temp: null, humi: null };
+
+function linReg(values) {
+  const n = values.length;
+  if (n < 2) return { slope: 0 };
+  const xs = Array.from({ length: n }, (_, i) => i);
+  const sumX  = xs.reduce((a, b) => a + b, 0);
+  const sumY  = values.reduce((a, b) => a + b, 0);
+  const sumXY = xs.reduce((acc, x, i) => acc + x * values[i], 0);
+  const sumXX = xs.reduce((acc, x) => acc + x * x, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return { slope: 0 };
+  return { slope: (n * sumXY - sumX * sumY) / denom };
+}
+
+function validSlice(values, n = 10) {
+  return values.filter(v => v !== null && !isNaN(v)).slice(-n);
+}
+
+function scoreMetric(values, thresh) {
+  const valid = validSlice(values, 5);
+  if (!valid.length) return 50;
+  const cur = valid[valid.length - 1];
+  const { min, max } = thresh;
+  if (min === null && max === null) return 75;
+  if (min !== null && max !== null) {
+    if (cur < min) return Math.max(0, 50 - Math.min(50, ((min - cur) / (max - min)) * 100));
+    if (cur > max) return Math.max(0, 50 - Math.min(50, ((cur - max) / (max - min)) * 100));
+    const center = (min + max) / 2;
+    return Math.round(100 - (Math.abs(cur - center) / ((max - min) / 2)) * 25);
+  }
+  if (min !== null) return cur < min ? Math.max(0, 40 - (min - cur) * 5) : Math.min(100, 75 + (cur - min) * 0.5);
+  if (max !== null) return cur > max ? Math.max(0, 40 - (cur - max) * 5) : Math.min(100, 75 + (max - cur) * 0.5);
+  return 75;
+}
+
+function predictBreach(values, threshold, direction) {
+  if (threshold === null) return null;
+  const valid = validSlice(values, 10);
+  if (valid.length < 4) return null;
+  const { slope } = linReg(valid);
+  const cur = valid[valid.length - 1];
+  if (direction === 'min' && slope >= -0.05) return null;
+  if (direction === 'max' && slope <=  0.05) return null;
+  if (direction === 'min' && cur <= threshold) return null;
+  if (direction === 'max' && cur >= threshold) return null;
+  const steps = Math.abs((cur - threshold) / slope);
+  const mins  = Math.round(steps * 0.5);
+  return mins >= 1 && mins <= 90 ? mins : null;
+}
+
+function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
+                          latestTemp, latestHumi, latestMois, latestPir, fieldNum) {
+  const tempScore = scoreMetric(tempSeries.values, thresholds.temp);
+  const humiScore = scoreMetric(humiSeries.values, thresholds.humi);
+  const dataScore = (latestTemp !== null && latestHumi !== null) ? 100 : 50;
+  const healthScore = Math.round(tempScore * 0.4 + humiScore * 0.4 + dataScore * 0.2);
+
+  const healthLabel =
+    healthScore >= 90 ? 'Excellent' :
+    healthScore >= 75 ? 'Good' :
+    healthScore >= 55 ? 'Fair' :
+    healthScore >= 35 ? 'Poor' : 'Critical';
+
+  const breachCandidates = [
+    { key: 'tempMin', mins: predictBreach(tempSeries.values, thresholds.temp.min, 'min'), label: m => `Temperature breach in ~${m} min` },
+    { key: 'tempMax', mins: predictBreach(tempSeries.values, thresholds.temp.max, 'max'), label: m => `Temp. max breach in ~${m} min` },
+    { key: 'humiMin', mins: predictBreach(humiSeries.values, thresholds.humi.min, 'min'), label: m => `Humidity breach in ~${m} min` },
+    { key: 'humiMax', mins: predictBreach(humiSeries.values, thresholds.humi.max, 'max'), label: m => `Humidity max breach in ~${m} min` },
+  ].filter(b => b.mins !== null).sort((a, b) => a.mins - b.mins);
+
+  const predictedBreach = breachCandidates.length ? breachCandidates[0].label(breachCandidates[0].mins) : null;
+
+  const tempValid = validSlice(tempSeries.values, 8);
+  const humiValid = validSlice(humiSeries.values, 8);
+  const { slope: tempSlope } = tempValid.length >= 3 ? linReg(tempValid) : { slope: 0 };
+  const { slope: humiSlope } = humiValid.length >= 3 ? linReg(humiValid) : { slope: 0 };
+
+  const observations = [];
+
+  // Temperature observation
+  if (latestTemp === null) {
+    observations.push('No temperature data available from ThingSpeak');
+  } else if (isOutOfRange(latestTemp, 'temp')) {
+    observations.push(`⚠ Temperature ${latestTemp.toFixed(1)}°C is outside your configured range`);
+  } else if (breachCandidates.find(b => b.key === 'tempMin')) {
+    const m = breachCandidates.find(b => b.key === 'tempMin').mins;
+    observations.push(`Temperature falling — threshold breach predicted in ~${m} min`);
+  } else if (Math.abs(tempSlope) > 0.15) {
+    const dir = tempSlope > 0 ? 'rising' : 'falling';
+    observations.push(`Temperature ${dir} at ${Math.abs(tempSlope).toFixed(2)}°C per reading — currently ${latestTemp.toFixed(1)}°C`);
+  } else {
+    observations.push(`Temperature stable at ${latestTemp.toFixed(1)}°C — no action needed`);
+  }
+
+  // Humidity observation
+  if (latestHumi === null) {
+    observations.push('No humidity data available from ThingSpeak');
+  } else if (isOutOfRange(latestHumi, 'humi')) {
+    observations.push(`⚠ Humidity ${latestHumi.toFixed(0)}% is outside your configured range`);
+  } else if (breachCandidates.find(b => b.key === 'humiMin')) {
+    const m = breachCandidates.find(b => b.key === 'humiMin').mins;
+    observations.push(`Humidity declining — threshold breach predicted in ~${m} min`);
+  } else if (Math.abs(humiSlope) > 0.2) {
+    const dir = humiSlope > 0 ? 'rising' : 'falling';
+    observations.push(`Humidity ${dir} — currently at ${latestHumi.toFixed(0)}%`);
+  } else {
+    observations.push(`Humidity stable at ${latestHumi.toFixed(0)}% — within normal range`);
+  }
+
+  // Moisture + Motion combined observation
+  const mois = latestMois === 1 ? 'Wet' : latestMois === 0 ? 'Dry' : null;
+  const pir  = latestPir  === 1 ? 'active' : latestPir  === 0 ? 'inactive' : null;
+
+  if (mois === 'Dry' && pir === 'inactive') {
+    observations.push('Soil moisture low and no motion detected — environment is idle');
+  } else if (mois === 'Dry') {
+    observations.push('Soil moisture is low — consider watering soon');
+  } else if (pir === 'active') {
+    observations.push('Motion detected — activity present in the monitored area');
+  } else if (mois === 'Wet') {
+    observations.push('Soil moisture is adequate — no irrigation needed');
+  } else {
+    observations.push('Motion and moisture sensors reading normally');
+  }
+
+  return { healthScore, healthLabel, predictedBreach, observations };
+}
 
 function setAIStatus(text) {
   const el = document.getElementById('aiStatus');
   if (el) el.textContent = text;
 }
 
-function setAILoading() {
-  setAIStatus('Analyzing...');
-  const obsEl = document.getElementById('observations');
-  if (obsEl) {
-    obsEl.innerHTML = `
-      <li class="obs-skeleton"></li>
-      <li class="obs-skeleton"></li>
-      <li class="obs-skeleton"></li>
-    `;
-  }
-}
-
 function updateInsightsPanel(insights) {
   const { healthScore, healthLabel, predictedBreach, observations } = insights;
 
-  const scoreEl  = document.getElementById('healthScore');
-  const labelEl  = document.getElementById('healthLabel');
-  const fillEl   = document.getElementById('healthFill');
-  const breachEl = document.getElementById('breachWarning');
+  const scoreEl      = document.getElementById('healthScore');
+  const labelEl      = document.getElementById('healthLabel');
+  const fillEl       = document.getElementById('healthFill');
+  const breachEl     = document.getElementById('breachWarning');
   const breachTextEl = document.getElementById('breachText');
-  const obsEl    = document.getElementById('observations');
+  const obsEl        = document.getElementById('observations');
 
   if (scoreEl) scoreEl.textContent = healthScore;
   if (labelEl) labelEl.textContent = healthLabel;
 
   const color =
     healthScore >= 90 ? '#48bb78' :
-    healthScore >= 70 ? '#63b3ed' :
-    healthScore >= 50 ? '#fbd38d' :
-    healthScore >= 30 ? '#ed8936' : '#fc8181';
+    healthScore >= 75 ? '#63b3ed' :
+    healthScore >= 55 ? '#fbd38d' :
+    healthScore >= 35 ? '#ed8936' : '#fc8181';
 
   if (fillEl) {
     fillEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - healthScore / 100);
@@ -743,34 +865,40 @@ function updateInsightsPanel(insights) {
   setAIStatus(`Updated ${now}`);
 }
 
-async function fetchInsights(tempSeries, humiSeries, moisSeries, pirSeries, latestTemp, latestHumi, latestMois, latestPir, fieldNum) {
-  setAILoading();
+function runInsights(tempSeries, humiSeries, moisSeries, pirSeries,
+                     latestTemp, latestHumi, latestMois, latestPir, fieldNum) {
+  const insights = computeInsights(
+    tempSeries, humiSeries, moisSeries, pirSeries,
+    latestTemp, latestHumi, latestMois, latestPir, fieldNum
+  );
+  updateInsightsPanel(insights);
+}
 
-  try {
-    const res = await fetch('/api/insights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sensors: {
-          temperature: { values: tempSeries.values, labels: tempSeries.labels, latest: latestTemp },
-          humidity:    { values: humiSeries.values,  labels: humiSeries.labels,  latest: latestHumi },
-          moisture:    { values: moisSeries.values,  labels: moisSeries.labels,  latest: latestMois },
-          motion:      { values: pirSeries.values,   labels: pirSeries.labels,   latest: latestPir  }
-        },
-        thresholds,
-        device: `Raspberry #${fieldNum}`
-      })
-    });
+// --------------------- Trend Arrows ---------------------
+function updateTrendArrow(id, current, previous) {
+  const el = document.getElementById(id);
+  if (!el || current === null || previous === null) return;
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.2) { el.textContent = ''; el.className = 'trend-arrow'; return; }
+  el.textContent = diff > 0 ? '↑' : '↓';
+  el.className   = `trend-arrow ${diff > 0 ? 'up' : 'down'}`;
+}
 
-    if (!res.ok) throw new Error(`${res.status}`);
-    const insights = await res.json();
-    updateInsightsPanel(insights);
-  } catch (err) {
-    console.error('AI insights failed:', err.message);
-    setAIStatus('Unavailable');
-    const obsEl = document.getElementById('observations');
-    if (obsEl) obsEl.innerHTML = `<li style="color:#718096">AI insights temporarily unavailable</li>`;
-  }
+// --------------------- Countdown Timer ---------------------
+let countdownValue = 30;
+let countdownInterval = null;
+
+function startCountdown() {
+  countdownValue = AUTO_REFRESH_MS / 1000;
+  clearInterval(countdownInterval);
+  const el = document.getElementById('countdown');
+  countdownInterval = setInterval(() => {
+    countdownValue = Math.max(0, countdownValue - 1);
+    if (el) {
+      el.textContent = `${countdownValue}s`;
+      el.className   = countdownValue <= 5 ? 'urgent' : '';
+    }
+  }, 1000);
 }
 
 // --------------------- Toast Notifications ---------------------

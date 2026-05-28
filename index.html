@@ -83,7 +83,10 @@
           </div>
           <div class="metric-content">
             <div class="metric-label">Temperature</div>
-            <div class="metric-value" id="latestTemp">—</div>
+            <div class="metric-value-row">
+              <div class="metric-value" id="latestTemp">—</div>
+              <span class="trend-arrow" id="trendTemp"></span>
+            </div>
             <div class="metric-unit">°C</div>
           </div>
         </div>
@@ -96,7 +99,10 @@
           </div>
           <div class="metric-content">
             <div class="metric-label">Humidity</div>
-            <div class="metric-value" id="latestHumi">—</div>
+            <div class="metric-value-row">
+              <div class="metric-value" id="latestHumi">—</div>
+              <span class="trend-arrow" id="trendHumi"></span>
+            </div>
             <div class="metric-unit">%</div>
           </div>
         </div>
@@ -109,7 +115,9 @@
           </div>
           <div class="metric-content">
             <div class="metric-label">Moisture</div>
-            <div class="metric-value" id="latestMois">—</div>
+            <div class="metric-value-row">
+              <div class="metric-value" id="latestMois">—</div>
+            </div>
             <div class="metric-unit">status</div>
           </div>
         </div>
@@ -123,7 +131,9 @@
           </div>
           <div class="metric-content">
             <div class="metric-label">Motion</div>
-            <div class="metric-value" id="latestPir">—</div>
+            <div class="metric-value-row">
+              <div class="metric-value" id="latestPir">—</div>
+            </div>
             <div class="metric-unit">status</div>
           </div>
         </div>
@@ -251,7 +261,7 @@
           Data source: ThingSpeak Public API
         </div>
         <div class="footer-info">
-          Auto-refresh: 30s
+          Next refresh in <span id="countdown">30s</span>
         </div>
       </div>
     </footer>
