@@ -19,13 +19,32 @@
 
 ## 🚀 Features
 
-- 📡 **Live ThingSpeak Integration** — Continuously polls real sensor feeds (temperature, humidity, soil moisture, PIR/motion)
-- 📊 **Interactive Charts** — Time-series visualizations powered by Chart.js
-- ⚠️ **Configurable Thresholds** — Set minimum limits per metric via an in-dashboard modal
-- 📧 **Automated Email Alerts** — SendGrid dynamic templates deliver structured breach notifications
-- 🔇 **Alert Cooldown** — Rate-limiting prevents repeated notification spam
-- 💾 **Local Persistence** — Thresholds and recipient settings saved across browser sessions
-- 🔒 **Secrets Stay Server-Side** — API keys never touch the browser
+**Data Pipeline**
+- 📡 **Live ThingSpeak Integration** — Continuously polls 4 sensor channels (temperature, humidity, soil moisture, PIR/motion)
+- 📊 **Interactive Charts** — Time-series visualizations with Chart.js, auto-refreshing every 30 seconds
+- ↑↓ **Trend Indicators** — Per-sensor directional arrows on every metric card
+
+**Statistical Process Control Engine**
+- 〜 **EWMA Trend Lines** — Exponentially Weighted Moving Average (λ=0.3) overlaid on temperature and humidity charts, smoothing sensor noise to reveal real trends
+- 📉 **Rolling 2σ Control Bands** — Auto-computed upper and lower control limits drawn as shaded regions; readings outside the band are statistically anomalous
+- 🔢 **Live Z-Score Detection** — Every reading is scored against its rolling mean and standard deviation; |Z| > 2 triggers a warning, |Z| > 3 is critical
+- 🔗 **Cross-Sensor Correlation** — Real-time Pearson correlation between temperature and humidity; a sudden breakdown flags environmental events or sensor faults
+- 📐 **Stats Strip** — Rolling μ, σ, Z-score per sensor, T-H correlation, and 2σ event counter — all live, all color-coded
+
+**Intelligence Panel**
+- 🧠 **Environment Health Score** — 0–100 score weighted across all sensors, Z-score penalties, and correlation state
+- ⏱️ **Predictive Breach Warning** — Linear regression on recent readings estimates time-to-threshold before a breach occurs
+- 💬 **Contextual Observations** — 3 auto-generated insights per refresh, statistically contextualised (e.g. *"Temperature is 2.8σ below rolling mean"*)
+
+**Alerting**
+- 📧 **Automated Email Alerts** — SendGrid dynamic templates fire when readings breach configured thresholds
+- 🔇 **Alert Cooldown** — Rate-limiting prevents notification spam during sustained breaches
+- 🔔 **Toast Notifications** — In-dashboard feedback replaces browser alert dialogs
+
+**Infrastructure**
+- 🔒 **Secrets Stay Server-Side** — API keys handled by Node.js/Express, never exposed to the client
+- 💾 **Local Persistence** — Thresholds and recipient settings survive browser sessions
+- 🌐 **Deployed on Vercel** — Serverless API functions + static frontend
 
 ---
 
@@ -34,10 +53,11 @@
 | Layer | Technology |
 |---|---|
 | Frontend | HTML, CSS, JavaScript, Chart.js |
-| Backend | Node.js, Express |
-| Email Provider | SendGrid (`@sendgrid/mail`) |
+| Analytics | Custom SPC engine — EWMA, Z-scores, Pearson correlation, linear regression |
+| Backend | Node.js, Express (local) + Vercel Serverless Functions (production) |
+| Email | SendGrid (`@sendgrid/mail`) with dynamic templates |
 | Data Source | ThingSpeak REST API |
-| Config | dotenv |
+| Deployment | Vercel |
 
 ---
 
@@ -48,13 +68,15 @@ ThingSpeak API
       │
       ▼
   Frontend (index.html + app.js)
-  ├── Fetches & normalizes multi-channel feed data
-  ├── Renders charts and metric cards via Chart.js
-  ├── Evaluates threshold breaches on each refresh cycle
-  └── POSTs alert payload to backend on breach
+  ├── Fetches & normalizes 4-channel sensor feeds
+  ├── Renders Chart.js time-series with EWMA + 2σ control bands
+  ├── SPC Engine: rolling stats → Z-scores → Pearson correlation
+  ├── Intelligence Engine: health score → breach prediction → observations
+  ├── Threshold breach detector → POST /api/send-alert
+  └── Trend arrows, countdown timer, toast notifications
       │
       ▼
-  Backend (server.js — Express)
+  Vercel Serverless Function (/api/send-alert)
   ├── Validates payload and recipient email
   └── Sends email via SendGrid Dynamic Template
       │
@@ -69,15 +91,17 @@ ThingSpeak API
 ```
 iot-threshold-email-alert-dashboard/
 │
-├── index.html                    # Dashboard UI and threshold modal
-├── app.js                        # Frontend logic: ThingSpeak fetch, threshold checks, alert calls
-├── server.js                     # Express server and /api/send-alert endpoint
+├── index.html                    # Dashboard UI, AI panel, threshold modal
+├── style.css                     # All styles including SPC and AI panel
+├── app.js                        # SPC engine, intelligence engine, charts, alerts
+├── server.js                     # Local Express server (dev only)
+├── api/
+│   └── send-alert.js             # Vercel serverless function — email delivery
 ├── tests/
-│   └── trigger-email.test.js     # Script to trigger and verify a real email alert
+│   └── trigger-email.test.js     # Script to trigger a real alert end-to-end
 ├── assets/
 │   └── screenshot.png            # Dashboard preview
-├── .env                          # Environment variables (not committed)
-└── README.md
+└── .env                          # Secrets (not committed)
 ```
 
 ---
@@ -187,12 +211,11 @@ npm run test:email
 ## 🔮 Future Improvements
 
 - [ ] Per-user authentication and per-device alert profiles
-- [ ] Retry/backoff logic and delivery status logging
-- [ ] Deployment config for Render / Railway / Vercel
-- [ ] Alert history UI with acknowledgment workflow
-- [ ] Unit and integration tests for threshold and cooldown logic
-- [ ] Configurable channel/metric mappings from the UI
+- [ ] Alert history log with acknowledgment workflow
+- [ ] Smart AI alert emails — pipe health score and observations into SendGrid template
 - [ ] Webhook, SMS, and Telegram notification channels
+- [ ] Unit and integration tests for SPC engine and threshold logic
+- [ ] Configurable EWMA decay factor (λ) and control band sigma level from UI
 
 ---
 
