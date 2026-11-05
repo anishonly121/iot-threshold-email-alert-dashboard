@@ -1,19 +1,22 @@
 {
-    "name": "iot-dashboard-alerts",
-    "version": "1.0.0",
-    "private": true,
-    "main": "server.js",
-    "scripts": {
-        "start": "node server.js",
-        "test:email": "node tests/trigger-email.test.js"
-    },
-    "dependencies": {
-        "@anthropic-ai/sdk": "^0.99.0",
-        "@sendgrid/mail": "^8.1.6",
-        "dotenv": "^16.4.7",
-        "express": "^4.21.2"
-    },
-    "devDependencies": {
-        "playwright": "^1.60.0"
-    }
+  "name": "iot-dashboard-alerts",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test:email": "node tests/trigger-email.test.js",
+    "test": "node --test tests/regression.test.js",
+    "check": "node --check app.js && node --check server.js && node --check api/send-alert.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
+  },
+  "overrides": {
+    "qs": "^6.16.1"
+  }
 }

@@ -1,241 +1,38 @@
-# IoT Threshold Email Alert Dashboard
-
-> Real-time IoT sensor monitoring with automated email alerts, built with ThingSpeak, Chart.js, Node.js, and SendGrid.
-
-![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat&logo=node.js&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat&logo=javascript&logoColor=black)
-![Chart.js](https://img.shields.io/badge/Chart.js-FF6384?style=flat&logo=chartdotjs&logoColor=white)
-![SendGrid](https://img.shields.io/badge/SendGrid-1A82E2?style=flat&logo=sendgrid&logoColor=white)
-
----
-
-## Demo
-
-**Live demo:** [iot-dashboard-alerts.vercel.app](https://iot-dashboard-alerts.vercel.app)
-
-![IoT Dashboard](assets/screenshot.png)
-
----
-
-## Features
-
-**Data Pipeline**
-- **Live ThingSpeak Integration**: Continuously polls 4 sensor channels (temperature, humidity, soil moisture, PIR/motion)
-- **Interactive Charts**: Time-series visualizations with Chart.js, auto-refreshing every 30 seconds
-- **Trend Indicators**: Per-sensor directional arrows on every metric card
-
-**Statistical Process Control Engine**
-- **EWMA Trend Lines**: Exponentially Weighted Moving Average (λ=0.3) overlaid on temperature and humidity charts, smoothing sensor noise to reveal real trends
-- **Rolling 2σ Control Bands**: Auto-computed upper and lower control limits drawn as shaded regions; readings outside the band are statistically anomalous
-- **Live Z-Score Detection**: Every reading is scored against its rolling mean and standard deviation; |Z| > 2 triggers a warning, |Z| > 3 is critical
-- **Cross-Sensor Correlation**: Real-time Pearson correlation between temperature and humidity; a sudden breakdown flags environmental events or sensor faults
-- **Stats Strip**: Rolling μ, σ, Z-score per sensor, T-H correlation, and 2σ event counter, all live and color-coded
-
-**Intelligence Panel**
-- **Environment Health Score**: 0–100 score weighted across all sensors, Z-score penalties, and correlation state
-- **Predictive Breach Warning**: Linear regression on recent readings estimates time-to-threshold before a breach occurs
-- **Contextual Observations**: 3 auto-generated insights per refresh, statistically contextualised (e.g. *"Temperature is 2.8σ below rolling mean"*)
-
-**Alerting**
-- **Automated Email Alerts**: SendGrid dynamic templates fire when readings breach configured thresholds
-- **Alert Cooldown**: Rate-limiting prevents notification spam during sustained breaches
-- **Toast Notifications**: In-dashboard feedback replaces browser alert dialogs
-
-**Infrastructure**
-- **Secrets Stay Server-Side**: API keys handled by Node.js/Express, never exposed to the client
-- **Local Persistence**: Thresholds and recipient settings survive browser sessions
-- **Deployed on Vercel**: Serverless API functions + static frontend
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | HTML, CSS, JavaScript, Chart.js |
-| Analytics | Custom SPC engine: EWMA, Z-scores, Pearson correlation, linear regression |
-| Backend | Node.js, Express (local) + Vercel Serverless Functions (production) |
-| Email | SendGrid (`@sendgrid/mail`) with dynamic templates |
-| Data Source | ThingSpeak REST API |
-| Deployment | Vercel |
-
----
-
-## System Architecture
+# IoT monitoring workspace
 
-```
-ThingSpeak API
-      │
-      ▼
-  Frontend (index.html + app.js)
-  ├── Fetches & normalizes 4-channel sensor feeds
-  ├── Renders Chart.js time-series with EWMA + 2σ control bands
-  ├── SPC Engine: rolling stats → Z-scores → Pearson correlation
-  ├── Intelligence Engine: health score → breach prediction → observations
-  ├── Threshold breach detector → POST /api/send-alert
-  └── Trend arrows, countdown timer, toast notifications
-      │
-      ▼
-  Vercel Serverless Function (/api/send-alert)
-  ├── Validates payload and recipient email
-  └── Sends email via SendGrid Dynamic Template
-      │
-      ▼
-  Recipient Inbox
-```
+Monitor temperature, humidity, binary moisture and motion across eight ThingSpeak fields. The dashboard includes Chart.js histories, EWMA smoothing, descriptive control bands, configurable upper/lower thresholds and authenticated email delivery.
 
----
+## Run locally
 
-## Project Structure
+Requires Node.js 20 or newer. Run npm ci, copy .env.example to .env, then npm start. Open http://127.0.0.1:8081. The server binds to loopback and serves only explicit public assets.
 
-```
-iot-threshold-email-alert-dashboard/
-│
-├── index.html                    # Dashboard UI, AI panel, threshold modal
-├── style.css                     # All styles including SPC and AI panel
-├── app.js                        # SPC engine, intelligence engine, charts, alerts
-├── server.js                     # Local Express server (dev only)
-├── api/
-│   └── send-alert.js             # Vercel serverless function: email delivery
-├── tests/
-│   └── trigger-email.test.js     # Script to trigger a real alert end-to-end
-├── assets/
-│   └── screenshot.png            # Dashboard preview
-└── .env                          # Secrets (not committed)
-```
+Demo mode generates clearly labelled simulated data and never sends email. Choose 30, 60 or 120 readings and export the displayed dataset as CSV. Live reads use the public channel IDs at the top of app.js; replace those IDs for your own sensors. Each selected Raspberry number maps to the same numbered field on all four channels.
 
----
+## Email setup
 
-## Setup
+Set SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, ALERT_API_TOKEN and comma-separated ALERT_ALLOWED_RECIPIENTS on the server. Use a long random access token; enter it into settings for the current browser session. It is never persisted in browser storage. Only distribute that token to trusted operators. Recipients must be approved in server configuration. Email is sent as plain text through SendGrid's v3 API.
 
-### 1. Clone the Repository
+Both upper and lower threshold breaches are supported. Browser-side cooldown prevents routine repeat notifications; this is not a distributed server rate limiter. Monitoring and delivery run only while the dashboard is open. Unattended monitoring requires a scheduled server worker and persistent alert state, which are not included. Never expose this endpoint to untrusted operators without durable rate limiting.
 
-```bash
-git clone https://github.com/anishonly121/iot-threshold-email-alert-dashboard.git
-cd iot-threshold-email-alert-dashboard
-```
+## Data interpretation
 
-### 2. Install Dependencies
+Missing, blank and invalid values remain missing. Readings older than five minutes, or more than a minute in the future, are withheld from current-value cards and alerts. Charts retain historical readings; freshness is reported separately. Temperature/humidity correlation uses exact timestamp matches and is unavailable with insufficient matching data. Low correlation alone is not treated as a sensor fault.
 
-```bash
-npm install
-```
+The environment score is a heuristic, not a validated safety assessment. EWMA and descriptive statistics are local calculations, not generative AI. Control bands use the displayed window, not a calibrated production baseline. Time-to-breach forecasting is disabled until timestamp-aware forecasts can be validated. Missing sensors and unconfigured thresholds limit the meaning of the score.
 
-### 3. Configure Environment Variables
+## Verification
 
-Create a `.env` file in the project root:
-```env
-SENDGRID_API_KEY=your_sendgrid_api_key
-SENDGRID_FROM_EMAIL=verified_sender@example.com
-SENDGRID_TEMPLATE_ID=your_dynamic_template_id
-ALERT_TEST_TO_EMAIL=recipient@example.com
-PORT=3000
-```
+npm run check performs syntax checks. npm test runs regression and local HTTP tests without sending email. GitHub Actions runs these checks on pushes and pull requests. The legacy npm run test:email command sends real mail and is not part of automated validation; use only deliberately with the required authorization setup.
 
-> **Note:** `SENDGRID_FROM_EMAIL` must be a verified sender in your SendGrid account.
+## Deployment
 
-### 4. Start the Server
+The existing vercel.json retains static assets and /api/send-alert. Set the same environment variables in Vercel before enabling email. Keep .env and .vercel untracked. Dependency installation is reproducible through package-lock.json. The API handler is shared between local Express and Vercel.
 
-```bash
-npm start
-```
+## Upgrade verification limits
 
-Open your browser at `http://localhost:3000`
+No real email was sent. Live upstream readings and deployed Vercel behavior have not been verified. Desktop browser verification passed for demo readings, rendered charts and opening/closing threshold settings. Mobile layouts, complete keyboard navigation, live email and deployed Vercel behavior still require verification before production publication.
 
----
-
-## End-to-End Flow
-
-1. User opens the dashboard and sets threshold values via the modal
-2. Dashboard polls ThingSpeak feeds at a configured refresh interval
-3. Latest values are parsed and rendered in charts and metric cards
-4. Breach detector checks whether temperature or humidity drops below the minimum threshold
-5. On breach (and if cooldown allows), frontend sends alert payload to the backend
-6. Backend validates the request and calls SendGrid with dynamic template data
-7. Recipient receives a structured email with metric, value, threshold, device, and timestamp
-8. Alert state is persisted locally to prevent duplicate notifications
-
----
-
-## SendGrid Template: Dynamic Fields
-
-Your SendGrid template must reference these exact keys:
-
-| Field | Description |
-|---|---|
-| `metric` | Sensor type (e.g. `Temperature` or `Humidity`) |
-| `value` | Observed sensor reading at breach time |
-| `threshold` | Configured minimum threshold |
-| `condition` | Breach description (e.g. `below minimum`) |
-| `device` | Device context (e.g. `Raspberry #1`) |
-| `time` | Localized timestamp string |
-
----
-
-## Running the Email Trigger Test
-
-To send a real alert payload to the backend and verify delivery:
-
-```bash
-npm run test:email
-```
-
----
-
-## Alert Logic
-
-- Evaluated on each dashboard refresh cycle
-- Condition: reading is **below** the configured minimum threshold
-- Emails are rate-limited by a configurable `cooldownMinutes` value
-- A new breach after recovery can trigger immediately
-
----
-
-## Security & Reliability
-
-- All secrets stored server-side in `.env` and never exposed to the client
-- Input validation checks recipient email format before sending
-- Backend returns explicit error messages to aid debugging
-- Cooldown logic reduces notification noise and alert storms
-
----
-
-## Known Limitations
-
-- Single-user, browser-local settings (resets if local storage is cleared)
-- Breach logic covers only below-minimum thresholds for temperature and humidity
-- No persistent database; delivery tracking (opened/bounced) not yet in-app
-
----
-
-## Future Improvements
-
-- [ ] Per-user authentication and per-device alert profiles
-- [ ] Alert history log with acknowledgment workflow
-- [ ] Smart AI alert emails: pipe health score and observations into SendGrid template
-- [ ] Webhook, SMS, and Telegram notification channels
-- [ ] Unit and integration tests for SPC engine and threshold logic
-- [ ] Configurable EWMA decay factor (λ) and control band sigma level from UI
-
----
-
-## Use Cases
-
-- Home or greenhouse environmental monitoring
-- Small server room temperature and humidity tracking
-- Remote sensor watching with lightweight alerting
-- Academic IoT prototype demonstrating a full data-to-alert pipeline
-
----
-
-## Author
-
-**Anish Bhole**, IT student at Singapore Polytechnic
-- GitHub: [@anishonly121](https://github.com/anishonly121)
-- LinkedIn: [linkedin.com/in/anishbhole](https://www.linkedin.com/in/anishbhole/)
-
----
 
 ## License
+MIT. See LICENSE.
 
-This project is open source and available under the [MIT License](LICENSE).
