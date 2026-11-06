@@ -54,7 +54,7 @@ The existing vercel.json retains static assets and /api/send-alert. Set the same
 
 ## Upgrade verification limits
 
-No real email was sent. Live upstream readings and deployed Vercel behavior have not been verified. Desktop browser verification passed for demo readings, rendered charts and opening/closing threshold settings. Phone-width layout was checked and horizontal chart overflow was fixed. Production serves the upgrade and rejects unauthorized alerts. Live email delivery and real AI-provider output have not been tested.
+All 15 regression tests and JavaScript syntax checks pass. Desktop browser verification covered demo readings, rendered charts and threshold settings; phone-width layout was checked for overflow. Production Gemini guidance was verified with explicitly simulated readings: it returned a care brief identifying a temperature breach and preserving uncertainty around binary soil data. Unauthenticated care requests returned 401. No real email was sent; live email delivery and physical sensor calibration remain unverified. Alert checks still require the dashboard to remain open.
 
 
 ## License
