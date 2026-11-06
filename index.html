@@ -4,30 +4,36 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="description" content="Real-time IoT sensor monitoring dashboard. Tracks temperature, humidity, soil moisture and motion via ThingSpeak with automated email alerts."/>
-  <meta property="og:title" content="IoT Threshold Alert Dashboard"/>
-  <meta property="og:description" content="Real-time sensor monitoring with automated email alerts via SendGrid."/>
+  <meta property="og:title" content="RootWatch — Plant care, even on busy days"/>
+  <meta property="og:description" content="Built for my dad’s garden: sensor monitoring, email alerts and AI-assisted care guidance."/>
   <meta property="og:type" content="website"/>
-  <title>IoT Dashboard — Live Sensor Monitor</title>
+  <title>RootWatch — Plant care, even on busy days</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"/>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
+  <a class="skip-link" href="#garden">Skip to garden readings</a>
   <div class="container">
-    <header>
+    <nav class="brand-nav" aria-label="Main navigation"><a class="wordmark" href="#">◒ RootWatch<span>BUILT WITH CARE</span></a><div><a href="#why">The story</a><a href="https://github.com/anishonly121/iot-threshold-email-alert-dashboard" target="_blank" rel="noopener">View source ↗</a></div></nav>
+    <section class="garden-hero" aria-labelledby="heroTitle">
+      <div><span class="eyebrow">A SON’S PROJECT. A GARDENER’S PEACE OF MIND.</span><h1 id="heroTitle">Life gets busy.<br><em>Keep an eye on what grows.</em></h1><p>Built for my dad, who loves gardening but can’t always check on his plants during work. RootWatch turns sensor readings into clear signals, email alerts, and practical next steps.</p><div class="hero-actions"><button id="tryDemo" class="primary-action">Explore the demo <span aria-hidden="true">↗</span></button><a href="#why">Why I built this ↓</a></div><span class="hero-note">Personal IoT project · Raspberry Pi + ThingSpeak · Designed by Anish Bhole</span></div>
+      <div class="botanical" aria-hidden="true"><svg viewBox="0 0 360 350" fill="none"><circle cx="180" cy="168" r="130" stroke="#476d58" stroke-dasharray="3 9"/><circle cx="180" cy="168" r="100" stroke="#263e31"/><path d="M181 260C170 188 185 126 224 66" stroke="#a2c79d" stroke-width="4"/><path d="M183 178C133 178 104 147 102 105C146 103 176 123 183 178Z" fill="#487455"/><path d="M192 142C240 145 272 116 280 75C237 72 202 93 192 142Z" fill="#78955b"/><path d="M177 222C130 228 93 209 76 171C123 159 160 174 177 222Z" fill="#365e46"/><path d="M182 195C231 214 270 191 289 159C241 142 203 157 182 195Z" fill="#5e855b"/><path d="M145 255H218L207 307H156Z" fill="#b48d64"/><path d="M137 251H226V263H137Z" fill="#d1aa7c"/><circle cx="278" cy="250" r="24" fill="#182e23" stroke="#78955b"/><path d="M267 250l8 8 14-17" stroke="#c8e5b3" stroke-width="2"/></svg><span class="botanical-caption">SMALL SIGNALS. MORE INFORMED CARE.</span></div>
+    </section>
+    <header id="garden">
       <div class="header-content">
         <div class="title-section">
-          <h1>
+          <h2 class="garden-title">
             <svg class="icon-dashboard" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7" rx="1"></rect>
               <rect x="14" y="3" width="7" height="7" rx="1"></rect>
               <rect x="14" y="14" width="7" height="7" rx="1"></rect>
               <rect x="3" y="14" width="7" height="7" rx="1"></rect>
             </svg>
-            IoT Dashboard
-          </h1>
-          <p class="subtitle">Real-time sensor monitoring via ThingSpeak</p>
+            Garden overview
+          </h2>
+          <p class="subtitle">A closer look at the environment around your plants.</p>
         </div>
 
         <div class="controls">
@@ -39,17 +45,17 @@
                 <line x1="6" y1="6" x2="6.01" y2="6"></line>
                 <line x1="6" y1="18" x2="6.01" y2="18"></line>
               </svg>
-              Raspberry Pi
+              Sensor station
             </label>
             <select id="fieldSelect">
-              <option value="1">Raspberry #1</option>
-              <option value="2">Raspberry #2</option>
-              <option value="3">Raspberry #3</option>
-              <option value="4">Raspberry #4</option>
-              <option value="5">Raspberry #5</option>
-              <option value="6">Raspberry #6</option>
-              <option value="7">Raspberry #7</option>
-              <option value="8">Raspberry #8</option>
+              <option value="1">Station #1</option>
+              <option value="2">Station #2</option>
+              <option value="3">Station #3</option>
+              <option value="4">Station #4</option>
+              <option value="5">Station #5</option>
+              <option value="6">Station #6</option>
+              <option value="7">Station #7</option>
+              <option value="8">Station #8</option>
             </select>
           </div>
 
@@ -114,7 +120,7 @@
             </svg>
           </div>
           <div class="metric-content">
-            <div class="metric-label">Moisture</div>
+            <div class="metric-label">Soil sensor</div>
             <div class="metric-value-row">
               <div class="metric-value" id="latestMois">—</div>
             </div>
@@ -140,12 +146,13 @@
       </div>
     </header>
 
-<section class="workspace-tools" aria-label="Monitoring controls"><div><span class="eyebrow">MONITORING WORKSPACE</span><p id="dataQuality" role="status">Connecting to sensor feeds…</p></div><div class="tool-actions"><label><input type="checkbox" id="demoToggle"> Demo mode</label><label>History <select id="historySelect"><option value="30">30 readings</option><option value="60" selected>60 readings</option><option value="120">120 readings</option></select></label><button id="exportBtn">Export CSV</button></div></section>
+<section class="workspace-tools" aria-label="Monitoring controls"><div><span class="eyebrow">LIVE WORKSPACE</span><p id="dataQuality" role="status">Connecting to sensor feeds…</p></div><div class="tool-actions"><label><input type="checkbox" id="demoToggle"> Demo mode</label><label>History <select id="historySelect"><option value="30">30 readings</option><option value="60" selected>60 readings</option><option value="120">120 readings</option></select></label><button id="exportBtn">Export CSV</button></div></section>
+    <section class="care-panel" aria-labelledby="careTitle"><div class="care-heading"><div><span class="eyebrow">FROM READINGS TO NEXT STEPS</span><h2 id="careTitle">Your plant-care brief</h2></div><span id="careSource" class="source-badge">Built-in guidance</span></div><p id="careSummary" role="status">Waiting for fresh readings. Start the demo to explore how care guidance works.</p><div id="careCards" class="care-cards"></div><div class="care-ai"><div><label for="plantContext">Plant context <span>(optional)</span></label><input id="plantContext" maxlength="180" placeholder="e.g. basil in a balcony pot, morning sun"><p>AI receives these notes, current readings and thresholds. It cannot diagnose a plant from sensors alone.</p></div><button id="askCare" class="primary-action">Ask AI for next steps</button></div><div id="aiAdvice" class="ai-advice" role="status" hidden></div><p class="care-footnote">Recommendations support your judgment. Check the plant and soil before changing watering or placement.</p></section>
     <div class="ai-panel" id="aiPanel">
       <div class="ai-panel-header">
         <div class="ai-title">
           <span class="ai-badge">SPC</span>
-          <h2>Environmental Intelligence</h2>
+          <h2>Understand the readings</h2>
         </div>
         <div class="ai-meta">
           <span class="ai-powered">Local statistical analysis</span>
@@ -306,6 +313,8 @@
       </section>
     </main>
 
+    <section id="why" class="origin-story"><div><span class="eyebrow">WHY I BUILT ROOTWATCH</span><h2>For the plants.<br>And the person caring for them.</h2></div><div><p>My dad loves taking care of plants and gardening. But with work, he can’t check on them as often as he’d like—or always know when something has changed.</p><p>I created this project to help close that gap: sensors near the plants track their environment, the dashboard makes changes visible, and threshold alerts can send an email when readings move outside a chosen range.</p><p class="story-signature">— Anish Bhole, creator</p></div></section>
+    <section class="build-notes" aria-label="How it works"><div><span>01 / SENSE</span><h3>Read the environment</h3><p>Temperature, humidity and binary soil readings arrive through ThingSpeak.</p></div><div><span>02 / UNDERSTAND</span><h3>Make changes visible</h3><p>Freshness checks, threshold comparisons and historical charts add context.</p></div><div><span>03 / RESPOND</span><h3>Choose the next step</h3><p>Email alerts and optional AI guidance support a human care decision.</p></div></section><p class="scope-note">Current prototype: monitoring and email checks run while this page is open. Always-on server monitoring is the next step. Soil sensor polarity must be calibrated before interpreting wet or dry.</p>
     <footer>
       <div class="footer-content">
         <div class="footer-info">
@@ -433,6 +442,7 @@
 
   <div id="toastContainer" role="status" aria-live="polite" class="toast-container"></div>
   <script src="app.js"></script>
+  <script src="care.js"></script>
 </body>
 </html>
 

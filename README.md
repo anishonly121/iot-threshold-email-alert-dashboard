@@ -1,4 +1,28 @@
-# IoT monitoring workspace
+# RootWatch — Plant care, even on busy days
+
+[Live dashboard](https://iot-dashboard-alerts.vercel.app) · [Source](https://github.com/anishonly121/iot-threshold-email-alert-dashboard)
+
+## Why I built it
+
+My dad loves taking care of plants and gardening. Work means he cannot check on them as often as he would like, or always know when something changes. I built RootWatch to make the environment around his plants visible and help him respond sooner: sensor readings, understandable thresholds, email alerts, and practical care guidance in one place.
+
+This is a personal engineering project, not a claim of proven plant-health outcomes. The current prototype checks alerts while the dashboard is open; always-on monitoring is a future milestone.
+
+## Explore the experience
+
+Start with **Explore the demo** to see explicitly simulated readings without connecting hardware or sending email. Select a station, set plant-appropriate temperature/humidity bounds, review the care brief, explore historical charts, and export the readings. The personal story lives in the dashboard as well as here.
+
+## AI-assisted care guidance
+
+Built-in, rule-based care cards work without an AI key and are labelled accordingly. **Ask AI for next steps** requests a Claude-generated brief using current readings, configured thresholds and optional plant context. It is on demand, not called by auto-refresh or included in email alerts. AI does not control irrigation or diagnose disease.
+
+Configure ANTHROPIC_API_KEY in Vercel and redeploy to enable the provider. ANTHROPIC_MODEL defaults to claude-haiku-4-5 and can be changed to an available model. Enter the existing owner access token in Threshold Settings. The provider key stays server-side. The UI explains what is sent before the user asks for AI advice. Set a spending limit in your Anthropic account.
+
+The endpoint authenticates the owner, validates and bounds inputs, rejects stale snapshots, limits output, applies a provider timeout and a 30-second warm-instance cooldown. This cooldown is not a global distributed quota. Missing provider configuration and provider errors leave the built-in guidance available. Soil sensor polarity is explicitly uncalibrated, so advice never assumes that 0 or 1 means a particular watering need.
+
+API reference: https://platform.claude.com/docs/en/api/messages/create
+
+## Engineering overview
 
 Monitor temperature, humidity, binary moisture and motion across eight ThingSpeak fields. The dashboard includes Chart.js histories, EWMA smoothing, descriptive control bands, configurable upper/lower thresholds and authenticated email delivery.
 
@@ -30,7 +54,7 @@ The existing vercel.json retains static assets and /api/send-alert. Set the same
 
 ## Upgrade verification limits
 
-No real email was sent. Live upstream readings and deployed Vercel behavior have not been verified. Desktop browser verification passed for demo readings, rendered charts and opening/closing threshold settings. Mobile layouts, complete keyboard navigation, live email and deployed Vercel behavior still require verification before production publication.
+No real email was sent. Live upstream readings and deployed Vercel behavior have not been verified. Desktop browser verification passed for demo readings, rendered charts and opening/closing threshold settings. Phone-width layout was checked and horizontal chart overflow was fixed. Production serves the upgrade and rejects unauthorized alerts. Live email delivery and real AI-provider output have not been tested.
 
 
 ## License

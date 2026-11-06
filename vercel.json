@@ -1,14 +1,47 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/send-alert.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "style.css", "use": "@vercel/static" },
-    { "src": "app.js", "use": "@vercel/static" },
-    { "src": "assets/**", "use": "@vercel/static" }
+    {
+      "src": "api/care-advice.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "care.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/send-alert.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "style.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "app.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**",
+      "use": "@vercel/static"
+    }
   ],
   "routes": [
-    { "src": "/api/send-alert", "dest": "/api/send-alert.js" },
-    { "src": "/(.*)", "dest": "/$1" }
+    {
+      "src": "/api/care-advice",
+      "dest": "/api/care-advice.js"
+    },
+    {
+      "src": "/api/send-alert",
+      "dest": "/api/send-alert.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
   ]
 }

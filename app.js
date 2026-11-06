@@ -570,6 +570,7 @@ function updateLatestValue(element, value, type) {
 
 async function refreshDashboard() {
   const requestId = ++generation;
+  window.dispatchEvent(new CustomEvent('care-loading'));
   const fieldNum = Number(fieldSelect.value);
 
   // Disable refresh button during load
@@ -638,6 +639,7 @@ async function refreshDashboard() {
     updateLatestValue(latestPirEl, latestPir, 'pir');
     exportRows = [tempSeries,humiSeries,moisSeries,pirSeries].flatMap((series,k)=>series.values.map((v,i)=>[Number.isFinite(series.times[i])?new Date(series.times[i]).toISOString():'',fieldNum,['temperature','humidity','moisture','motion'][k],v??'',demoMode?'demo':'live']));
     document.getElementById('dataQuality').textContent = demoMode ? 'DEMO · simulated readings · emails disabled' : [latestTemp,latestHumi,latestMois,latestPir].filter(Number.isFinite).length+'/4 fresh sensors · readings older than 5 minutes withheld';
+    window.dispatchEvent(new CustomEvent('care-readings',{detail:{temperature:latestTemp,humidity:latestHumi,moisture:latestMois,thresholds:JSON.parse(JSON.stringify(thresholds)),station:fieldNum,demo:demoMode,observedAt:Date.now()}}));
     void handleThresholdAlerts(latestTemp, latestHumi, fieldNum);
 
     updateTrendArrow('trendTemp', latestTemp, previousValues.temp);
@@ -911,15 +913,15 @@ function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
   if (correlation !== null && Math.abs(correlation) < 0.3) {
     observations.push(`Weak T-H correlation (r=${correlation}); this alone does not indicate a fault`);
   } else if (mois === 'Dry' && pir === 'inactive') {
-    observations.push('Soil moisture low and no motion detected — environment is idle');
+    observations.push('Soil sensor reports 0 and motion is inactive — calibrate soil polarity before interpreting moisture');
   } else if (mois === 'Dry') {
-    observations.push('Soil moisture is low — consider watering soon');
+    observations.push('Soil sensor reports 0 — verify its calibration and inspect the soil before watering');
   } else if (pir === 'active') {
     observations.push('Motion detected — activity present in monitored area');
   } else if (mois === 'Wet') {
-    observations.push('Soil moisture adequate — no irrigation needed');
+    observations.push('Soil sensor reports 1 — this does not establish whether watering is needed');
   } else {
-    observations.push('All sensors reading within expected parameters');
+    observations.push('No additional care conclusion can be drawn from these sensor states');
   }
 
   return { healthScore, healthLabel, predictedBreach, observations };
