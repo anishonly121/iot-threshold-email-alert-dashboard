@@ -18,3 +18,53 @@ test('authorized delivery uses provider contract without real email',async()=>{c
 test('care brief requires fresh well-formed readings',()=>{const {normalize}=require('../api/care-advice');const b={station:1,demo:true,observedAt:Date.now(),temperature:30,humidity:60,moisture:1,thresholds:{temp:{min:18,max:28},humi:{min:30,max:70}},context:'Basil'};assert.ok(normalize(b));assert.equal(normalize({...b,observedAt:Date.now()-400000}),null);assert.equal(normalize({...b,humidity:101}),null);assert.equal(normalize({...b,moisture:2}),null);assert.equal(normalize({...b,context:'x'.repeat(181)}),null);});
 test('care endpoint fails closed without owner authorization',async()=>{const res={setHeader(){},status(n){this.code=n;return this},json(){return this}};await require('../api/care-advice')({method:'POST',headers:{},body:{}},res);assert.equal(res.code,401);});
 test('care provider contract is grounded and key stays server-side',async()=>{const oldFetch=global.fetch;const oldKey=process.env.ANTHROPIC_API_KEY,oldToken=process.env.ALERT_API_TOKEN;process.env.ANTHROPIC_API_KEY='test-provider-key';process.env.ALERT_API_TOKEN='test-owner';let payload;global.fetch=async(url,opts)=>{assert.equal(url,'https://api.anthropic.com/v1/messages');payload=JSON.parse(opts.body);return {ok:true,json:async()=>({content:[{type:'text',text:'Check airflow and inspect the plant.'}]})};};try{const res={setHeader(){},status(n){this.code=n;return this},json(b){this.body=b;return this}};await require('../api/care-advice')({method:'POST',headers:{authorization:'Bearer test-owner'},body:{station:1,demo:true,observedAt:Date.now(),temperature:30,humidity:60,moisture:1,thresholds:{temp:{min:18,max:28},humi:{min:null,max:null}},context:'Basil'}},res);assert.equal(res.code,200);assert.match(payload.system,/Binary moisture/);assert.equal(res.body.advice,'Check airflow and inspect the plant.');assert.ok(!JSON.stringify(res.body).includes('test-provider-key'));}finally{global.fetch=oldFetch;if(oldKey===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=oldKey;if(oldToken===undefined)delete process.env.ALERT_API_TOKEN;else process.env.ALERT_API_TOKEN=oldToken;}});
+
+test('Gemini contract protects keys, ignores thought parts and handles provider failures', async () => {
+  const keys = ['GEMINI_API_KEY', 'GEMINI_MODEL', 'ANTHROPIC_API_KEY', 'ALERT_API_TOKEN'];
+  const saved = keys.map(k => process.env[k]);
+  const oldFetch = global.fetch;
+  Object.assign(process.env, {GEMINI_API_KEY: 'fake-gemini-key', GEMINI_MODEL: 'gemini-3.5-flash-lite', ANTHROPIC_API_KEY: 'fake-other-key', ALERT_API_TOKEN: 'test-owner'});
+  const body = {station: 1, demo: true, observedAt: Date.now(), temperature: 30, humidity: 60, moisture: 1, thresholds: {temp: {min: 18, max: 28}, humi: {min: null, max: null}}, context: 'Basil'};
+  const req = {method: 'POST', headers: {authorization: 'Bearer test-owner'}, body};
+  const result = () => ({setHeader(){}, status(n){this.code=n; return this}, json(b){this.body=b; return this}});
+  const freshHandler = () => {delete require.cache[require.resolve('../api/care-advice')]; return require('../api/care-advice')};
+  try {
+    let calls = 0;
+    global.fetch = async (url, options) => {
+      calls++;
+      assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
+      assert.equal(options.headers['x-goog-api-key'], 'fake-gemini-key');
+      const payload = JSON.parse(options.body);
+      assert.match(payload.systemInstruction.parts[0].text, /Binary moisture/);
+      assert.equal(JSON.parse(payload.contents[0].parts[0].text).demo, true);
+      assert.ok(!options.body.includes('fake-gemini-key'));
+      return {ok: true, json: async () => ({candidates: [{finishReason: 'STOP', content: {parts: [{text: 'private reasoning', thought: true}, {text: 'Inspect airflow and soil.'}]}}]})};
+    };
+    const handler = freshHandler(), res = result();
+    await handler(req, res);
+    assert.equal(res.code, 200);
+    assert.equal(res.body.provider, 'Gemini');
+    assert.equal(res.body.advice, 'Inspect airflow and soil.');
+    assert.ok(!JSON.stringify(res.body).includes('fake-'));
+    const cooldown = result(); await handler(req, cooldown);
+    assert.equal(cooldown.code, 429); assert.equal(calls, 1);
+    for (const reply of [
+      {ok: false, status: 429},
+      {ok: false, status: 403},
+      {ok: true, json: async () => ({candidates: [{finishReason: 'MAX_TOKENS', content: {parts: [{text: 'partial advice'}]}}]})},
+      {ok: true, json: async () => ({promptFeedback: {blockReason: 'SAFETY'}})},
+      {ok: true, json: async () => ({candidates: [{finishReason: 'STOP', content: {parts: []}}]})}
+    ]) {
+      global.fetch = async () => reply;
+      const error = result(); await freshHandler()(req, error);
+      assert.equal(error.code, reply.status === 429 ? 429 : 502);
+      assert.equal(error.body.advice, undefined);
+    }
+    global.fetch = async () => {throw new Error('timeout')};
+    const timeout = result(); await freshHandler()(req, timeout); assert.equal(timeout.code, 502);
+  } finally {
+    global.fetch = oldFetch;
+    keys.forEach((k,i) => {if(saved[i] === undefined) delete process.env[k]; else process.env[k] = saved[i]});
+    delete require.cache[require.resolve('../api/care-advice')];
+  }
+});
