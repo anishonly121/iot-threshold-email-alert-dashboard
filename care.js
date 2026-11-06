@@ -3,6 +3,7 @@
   const byId=id=>document.getElementById(id);
   function card(title,text,kind='neutral'){const el=document.createElement('article');el.className='care-card '+kind;const h=document.createElement('h3');h.textContent=title;const p=document.createElement('p');p.textContent=text;el.append(h,p);return el;}
   window.addEventListener('care-loading',()=>{snapshot=null;revision++;byId('askCare').disabled=true;byId('careSummary').textContent='Refreshing readings… Previous suggestions are withheld until the new readings arrive.';byId('careCards').replaceChildren();byId('aiAdvice').hidden=true;byId('careSource').textContent='Built-in guidance';});
+  window.addEventListener('care-error',()=>{byId('careSummary').textContent='Readings could not be refreshed. Try again or explore the demo; no care decision should rely on unavailable data.';});
   window.addEventListener('care-readings',e=>{
     snapshot=e.detail;revision++;byId('askCare').disabled=false;const cards=[];let issues=0;
     for(const [key,label,range] of [['temperature','Temperature',snapshot.thresholds.temp],['humidity','Humidity',snapshot.thresholds.humi]]){
