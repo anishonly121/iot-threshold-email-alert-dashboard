@@ -258,7 +258,7 @@ const chartColors = {
   humi: {
     border: 'rgba(99, 179, 237, 1)',
     background: 'rgba(99, 179, 237, 0.2)',
-    gradient: ['rgba(99, 179, 237, 0.4)', 'rgba(99, 179, 237, 0.05)']
+    gradient: ['rgba(99, 179, 237, 0.4)', 'rgba(106, 128, 88, 0.06)']
   },
   mois: {
     border: 'rgba(104, 211, 145, 1)',
@@ -424,11 +424,11 @@ function makeLineChart(canvasId, label, colorKey, withSPC = false) {
         y: {
           beginAtZero: colorKey === 'mois' || colorKey === 'pir',
           grid: {
-            color: 'rgba(99, 179, 237, 0.08)',
+            color: 'rgba(106, 128, 88, 0.10)',
             borderColor: 'rgba(99, 179, 237, 0.2)'
           },
           ticks: {
-            color: '#a0aec0',
+            color: '#7b8874',
             font: {
               size: 11,
               weight: '500'
@@ -443,11 +443,11 @@ function makeLineChart(canvasId, label, colorKey, withSPC = false) {
         },
         x: {
           grid: {
-            color: 'rgba(99, 179, 237, 0.05)',
+            color: 'rgba(106, 128, 88, 0.06)',
             borderColor: 'rgba(99, 179, 237, 0.2)'
           },
           ticks: {
-            color: '#a0aec0',
+            color: '#7b8874',
             font: {
               size: 11,
               weight: '500'
@@ -543,7 +543,7 @@ function setStatus(msg, isError = false) {
   statusEl.textContent = msg;
   const dot = document.querySelector('.status-dot');
   if (dot) {
-    dot.style.background = isError ? '#f56565' : '#48bb78';
+    dot.style.background = isError ? '#f56565' : '#287447';
   }
 }
 
@@ -656,6 +656,7 @@ async function refreshDashboard() {
     startCountdown();
   } catch (err) {
     if(requestId !== generation) return;
+    window.dispatchEvent(new CustomEvent('care-error'));
     document.getElementById('dataQuality').textContent='Connection failed · charts show the last successful refresh';
     console.error('Dashboard refresh error:', err);
     setStatus("Error loading data", true);
@@ -946,10 +947,10 @@ function updateInsightsPanel(insights) {
   if (labelEl) labelEl.textContent = healthLabel;
 
   const color =
-    healthScore >= 90 ? '#48bb78' :
-    healthScore >= 75 ? '#63b3ed' :
-    healthScore >= 55 ? '#fbd38d' :
-    healthScore >= 35 ? '#ed8936' : '#fc8181';
+    healthScore >= 90 ? '#287447' :
+    healthScore >= 75 ? '#276789' :
+    healthScore >= 55 ? '#986019' :
+    healthScore >= 35 ? '#a34b20' : '#b44444';
 
   if (fillEl) {
     fillEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - healthScore / 100);
@@ -983,18 +984,18 @@ function updateStatsStrip(tempStats, humiStats, tempZ, humiZ, correlation, sigma
     const el = document.getElementById(id);
     if (!el || z === null) return;
     const a = Math.abs(z);
-    el.style.color = a > 3 ? '#fc8181' : a > 2 ? '#ed8936' : a > 1 ? '#fbd38d' : '#68d391';
+    el.style.color = a > 3 ? '#b44444' : a > 2 ? '#a34b20' : a > 1 ? '#986019' : '#287447';
   }
   function colorR(id, r) {
     const el = document.getElementById(id);
     if (!el || r === null) return;
     const a = Math.abs(r);
-    el.style.color = a > 0.7 ? '#68d391' : a > 0.3 ? '#fbd38d' : '#fc8181';
+    el.style.color = a > 0.7 ? '#287447' : a > 0.3 ? '#986019' : '#b44444';
   }
   function colorSigma(id, n) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.style.color = n > 5 ? '#fc8181' : n > 2 ? '#fbd38d' : '#68d391';
+    el.style.color = n > 5 ? '#b44444' : n > 2 ? '#986019' : '#287447';
   }
 
   set('statTempMean',   tempStats.mean,   1);
