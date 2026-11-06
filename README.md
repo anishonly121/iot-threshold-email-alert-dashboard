@@ -14,13 +14,13 @@ Start with **Explore the demo** to see explicitly simulated readings without con
 
 ## AI-assisted care guidance
 
-Built-in, rule-based care cards work without an AI key and are labelled accordingly. **Ask AI for next steps** requests a Claude-generated brief using current readings, configured thresholds and optional plant context. It is on demand, not called by auto-refresh or included in email alerts. AI does not control irrigation or diagnose disease.
+Built-in, rule-based care cards work without an AI key and are labelled accordingly. **Ask AI for next steps** requests a Gemini-generated brief (or Claude when only an Anthropic key is configured) using current readings, configured thresholds and optional plant context. It is on demand, not called by auto-refresh or included in email alerts. AI does not control irrigation or diagnose disease.
 
-Configure ANTHROPIC_API_KEY in Vercel and redeploy to enable the provider. ANTHROPIC_MODEL defaults to claude-haiku-4-5 and can be changed to an available model. Enter the existing owner access token in Threshold Settings. The provider key stays server-side. The UI explains what is sent before the user asks for AI advice. Set a spending limit in your Anthropic account.
+Configure `GEMINI_API_KEY` in Vercel Production and redeploy. `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`. Gemini is preferred when both keys are present; `ANTHROPIC_API_KEY` remains supported with `ANTHROPIC_MODEL` defaulting to `claude-haiku-4-5`. No automatic paid-provider fallback is attempted. Enter the existing owner access token in Alert settings; never enter the Gemini key there. Provider keys stay server-side. Free Gemini access has model/account quotas and Google may use free-tier inputs and outputs to improve its products: avoid sensitive personal notes. See [Google pricing](https://ai.google.dev/gemini-api/docs/pricing). Requests are on demand, bounded by a 20-second timeout, and have a 30-second warm-instance cooldown (not a distributed rate limit). Quota errors preserve built-in guidance.
 
 The endpoint authenticates the owner, validates and bounds inputs, rejects stale snapshots, limits output, applies a provider timeout and a 30-second warm-instance cooldown. This cooldown is not a global distributed quota. Missing provider configuration and provider errors leave the built-in guidance available. Soil sensor polarity is explicitly uncalibrated, so advice never assumes that 0 or 1 means a particular watering need.
 
-API reference: https://platform.claude.com/docs/en/api/messages/create
+API references: https://ai.google.dev/api/generate-content and https://platform.claude.com/docs/en/api/messages/create
 
 ## Engineering overview
 
