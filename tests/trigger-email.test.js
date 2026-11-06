@@ -3,6 +3,8 @@ require('dotenv').config();
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8081';
 const toEmail = process.env.ALERT_TEST_TO_EMAIL || process.env.SENDGRID_FROM_EMAIL;
 
+if (!process.env.ALERT_API_TOKEN) { console.error('Missing ALERT_API_TOKEN'); process.exit(1); }
+
 if (!toEmail) {
   console.error('Missing ALERT_TEST_TO_EMAIL or SENDGRID_FROM_EMAIL in .env');
   process.exit(1);
@@ -21,7 +23,7 @@ async function run() {
 
   const res = await fetch(`${BASE_URL}/api/send-alert`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.ALERT_API_TOKEN },
     body: JSON.stringify(payload)
   });
 

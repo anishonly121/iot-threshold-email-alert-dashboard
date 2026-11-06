@@ -1,3 +1,4 @@
+const safeStorage={getItem(key){try{return localStorage.getItem(key);}catch{return null;}},setItem(key,value){try{localStorage.setItem(key,value);}catch{console.warn('Settings could not be persisted');}}};
 // =====================
 // PUBLIC 4-CHANNEL SETUP (NO READ KEYS NEEDED)
 // =====================
@@ -8,7 +9,10 @@ const CHANNELS = {
   mois: "3230067",   // moisture
 };
 
-const RESULTS = 30;
+let RESULTS = 60;
+let generation = 0;
+let demoMode = false;
+let exportRows = [];
 const AUTO_REFRESH_MS = 30000;
 const SENDGRID_ALERT_ENDPOINT = '/api/send-alert';
 
@@ -29,10 +33,11 @@ let alertState = {};
 
 // Load thresholds from localStorage
 function loadThresholds() {
-  const stored = localStorage.getItem('iot_thresholds');
+  const stored = safeStorage.getItem('iot_thresholds');
   if (stored) {
     try {
-      thresholds = JSON.parse(stored);
+      const parsed=JSON.parse(stored);
+      for(const key of ['temp','humi']){const r=parsed?.[key];if(r&&[r.min,r.max].every(v=>v===null||Number.isFinite(v))&&(r.min===null||r.max===null||r.min<r.max))thresholds[key]=r;}
     } catch (e) {
       console.error('Failed to load thresholds:', e);
     }
@@ -41,11 +46,11 @@ function loadThresholds() {
 
 // Save thresholds to localStorage
 function saveThresholdsToStorage() {
-  localStorage.setItem('iot_thresholds', JSON.stringify(thresholds));
+  safeStorage.setItem('iot_thresholds', JSON.stringify(thresholds));
 }
 
 function loadEmailAlerts() {
-  const stored = localStorage.getItem('iot_email_alerts');
+  const stored = safeStorage.getItem('iot_email_alerts');
   if (stored) {
     try {
       emailAlerts = { ...emailAlerts, ...JSON.parse(stored) };
@@ -56,14 +61,14 @@ function loadEmailAlerts() {
 }
 
 function saveEmailAlertsToStorage() {
-  localStorage.setItem('iot_email_alerts', JSON.stringify(emailAlerts));
+  safeStorage.setItem('iot_email_alerts', JSON.stringify(emailAlerts));
 }
 
 function loadAlertState() {
-  const stored = localStorage.getItem('iot_alert_state');
+  const stored = safeStorage.getItem('iot_alert_state');
   if (stored) {
     try {
-      alertState = JSON.parse(stored);
+      const parsed=JSON.parse(stored); alertState=parsed&&typeof parsed==='object'&&!Array.isArray(parsed)?parsed:{};
     } catch (e) {
       console.error('Failed to load alert state:', e);
       alertState = {};
@@ -72,7 +77,7 @@ function loadAlertState() {
 }
 
 function saveAlertState() {
-  localStorage.setItem('iot_alert_state', JSON.stringify(alertState));
+  safeStorage.setItem('iot_alert_state', JSON.stringify(alertState));
 }
 
 
@@ -82,7 +87,8 @@ function buildFieldUrl(channelId, fieldNum) {
 }
 
 async function fetchField(channelId, fieldNum) {
-  const res = await fetch(buildFieldUrl(channelId, fieldNum));
+  if(demoMode) return {feeds:Array.from({length:RESULTS},(_,i)=>({created_at:new Date(Date.now()-(RESULTS-1-i)*30000).toISOString(),['field'+fieldNum]:channelId===CHANNELS.temp?24+Math.sin(i/8)*2:channelId===CHANNELS.humi?55-Math.sin(i/8)*8:channelId===CHANNELS.mois?1:Number(i%18<3)}))};
+  const res = await fetch(buildFieldUrl(channelId, fieldNum), {signal:AbortSignal.timeout(12000)});
   if (!res.ok) throw new Error(`HTTP ${res.status} for channel ${channelId} field${fieldNum}`);
   return res.json();
 }
@@ -96,9 +102,9 @@ function parseFeedsToSeries(data, fieldNum) {
     const date = new Date(feed.created_at);
     labels.push(date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     const v = feed[key];
-    values.push(v === null ? null : Number(v));
+    values.push(v == null || String(v).trim() === '' || !Number.isFinite(Number(v)) ? null : Number(v));
   }
-  return { labels, values };
+  return { labels, values, times: (data.feeds || []).map(f => Date.parse(f.created_at)) };
 }
 
 function latestValue(values) {
@@ -146,6 +152,7 @@ function getBreach(value, type) {
 
   const threshold = thresholds[type];
   if (threshold.min !== null && value < threshold.min) return 'below_min';
+  if (threshold.max !== null && value > threshold.max) return 'above_max';
   return null;
 }
 
@@ -160,7 +167,7 @@ function getBreachLabel() {
 }
 
 function canSendEmailAlert() {
-  return Boolean(emailAlerts.toEmail && isValidEmail(emailAlerts.toEmail));
+  return Boolean(document.getElementById('alertToken').value && emailAlerts.toEmail && isValidEmail(emailAlerts.toEmail));
 }
 
 function isValidEmail(email) {
@@ -170,7 +177,7 @@ function isValidEmail(email) {
 
 
 async function sendEmailAlert(type, value, breach, fieldNum) {
-  const thresholdValue = thresholds[type].min;
+  const thresholdValue = thresholds[type][breach === 'above_max' ? 'max' : 'min'];
   const payload = {
     toEmail: emailAlerts.toEmail,
     metric: getMetricLabel(type),
@@ -183,7 +190,7 @@ async function sendEmailAlert(type, value, breach, fieldNum) {
 
   const res = await fetch(SENDGRID_ALERT_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (document.getElementById('alertToken').value || '') },
     body: JSON.stringify(payload)
   });
 
@@ -194,7 +201,7 @@ async function sendEmailAlert(type, value, breach, fieldNum) {
 }
 
 async function handleThresholdAlerts(latestTemp, latestHumi, fieldNum) {
-  if (!canSendEmailAlert()) return;
+  if (demoMode || !canSendEmailAlert()) return;
 
   const now = Date.now();
   const cooldownMs = Math.max(1, Number(emailAlerts.cooldownMinutes) || 30) * 60 * 1000;
@@ -222,9 +229,9 @@ async function handleThresholdAlerts(latestTemp, latestHumi, fieldNum) {
     try {
       const metricLabel = getMetricLabel(check.type);
       const formattedValue = check.type === 'temp' ? check.value.toFixed(1) : check.value.toFixed(0);
-      const thresholdValue = thresholds[check.type].min;
+      const thresholdValue = thresholds[check.type][breach === 'above_max' ? 'max' : 'min'];
 
-      showToast(`${metricLabel} below threshold (${formattedValue} < ${thresholdValue}) — sending alert...`, 'warning');
+      showToast(`${metricLabel} ${getBreachLabel(breach)} (${formattedValue}; threshold ${thresholdValue}) — sending alert...`, 'warning');
 
       await sendEmailAlert(check.type, check.value, breach, fieldNum);
       alertState[stateKey] = { breach, lastSentAt: now };
@@ -562,6 +569,7 @@ function updateLatestValue(element, value, type) {
 }
 
 async function refreshDashboard() {
+  const requestId = ++generation;
   const fieldNum = Number(fieldSelect.value);
 
   // Disable refresh button during load
@@ -578,6 +586,7 @@ async function refreshDashboard() {
       fetchField(CHANNELS.pir,  fieldNum),
     ]);
 
+    if(requestId !== generation) return;
     const tempSeries = parseFeedsToSeries(tempData, fieldNum);
     const humiSeries = parseFeedsToSeries(humiData, fieldNum);
     const moisSeries = parseFeedsToSeries(moisData, fieldNum);
@@ -590,7 +599,7 @@ async function refreshDashboard() {
     const humiBands  = buildControlBands(humiSeries.values, humiStats);
     const tempZ      = getZScore(latestValue(tempSeries.values), tempStats);
     const humiZ      = getZScore(latestValue(humiSeries.values), humiStats);
-    const correlation = pearsonCorrelation(tempSeries.values, humiSeries.values);
+    const correlation = alignedCorrelation(tempSeries, humiSeries);
     const sigmaEvents = countSigmaEvents(tempSeries.values, tempStats)
                       + countSigmaEvents(humiSeries.values, humiStats);
 
@@ -618,16 +627,18 @@ async function refreshDashboard() {
     pirChart.update('active');
 
     // Update latest values with animation
-    const latestTemp = latestValue(tempSeries.values);
-    const latestHumi = latestValue(humiSeries.values);
-    const latestMois = latestValue(moisSeries.values);
-    const latestPir = latestValue(pirSeries.values);
+    const latestTemp = freshValue(tempSeries);
+    const latestHumi = freshValue(humiSeries);
+    const latestMois = freshValue(moisSeries);
+    const latestPir = freshValue(pirSeries);
 
     updateLatestValue(latestTempEl, latestTemp, 'temp');
     updateLatestValue(latestHumiEl, latestHumi, 'humi');
     updateLatestValue(latestMoisEl, latestMois, 'mois');
     updateLatestValue(latestPirEl, latestPir, 'pir');
-    await handleThresholdAlerts(latestTemp, latestHumi, fieldNum);
+    exportRows = [tempSeries,humiSeries,moisSeries,pirSeries].flatMap((series,k)=>series.values.map((v,i)=>[Number.isFinite(series.times[i])?new Date(series.times[i]).toISOString():'',fieldNum,['temperature','humidity','moisture','motion'][k],v??'',demoMode?'demo':'live']));
+    document.getElementById('dataQuality').textContent = demoMode ? 'DEMO · simulated readings · emails disabled' : [latestTemp,latestHumi,latestMois,latestPir].filter(Number.isFinite).length+'/4 fresh sensors · readings older than 5 minutes withheld';
+    void handleThresholdAlerts(latestTemp, latestHumi, fieldNum);
 
     updateTrendArrow('trendTemp', latestTemp, previousValues.temp);
     updateTrendArrow('trendHumi', latestHumi, previousValues.humi);
@@ -642,6 +653,8 @@ async function refreshDashboard() {
     setStatus(`Updated at ${now}`);
     startCountdown();
   } catch (err) {
+    if(requestId !== generation) return;
+    document.getElementById('dataQuality').textContent='Connection failed · charts show the last successful refresh';
     console.error('Dashboard refresh error:', err);
     setStatus("Error loading data", true);
     
@@ -651,6 +664,7 @@ async function refreshDashboard() {
       stack: err.stack
     });
   } finally {
+    if(requestId !== generation) return;
     // Re-enable refresh button
     refreshBtn.disabled = false;
     refreshBtn.style.opacity = '1';
@@ -661,6 +675,7 @@ async function refreshDashboard() {
 function openThresholdModal() {
   const modal = document.getElementById('thresholdModal');
   modal.classList.add('active');
+  document.getElementById('tempMin').focus();
   
   // Populate current values
   document.getElementById('tempMin').value = thresholds.temp.min ?? '';
@@ -673,6 +688,7 @@ function openThresholdModal() {
 function closeThresholdModal() {
   const modal = document.getElementById('thresholdModal');
   modal.classList.remove('active');
+  document.getElementById('thresholdBtn').focus();
 }
 
 function saveThresholds() {
@@ -682,28 +698,13 @@ function saveThresholds() {
   const humiMin = parseFloat(document.getElementById('humiMin').value);
   const humiMax = parseFloat(document.getElementById('humiMax').value);
   const toEmail = document.getElementById('alertToEmail').value.trim();
-  // Validate and update thresholds
-  thresholds.temp.min = isNaN(tempMin) ? null : tempMin;
-  thresholds.temp.max = isNaN(tempMax) ? null : tempMax;
-  thresholds.humi.min = isNaN(humiMin) ? null : humiMin;
-  thresholds.humi.max = isNaN(humiMax) ? null : humiMax;
-  
-  // Validate min < max
-  if (thresholds.temp.min !== null && thresholds.temp.max !== null && thresholds.temp.min >= thresholds.temp.max) {
-    showToast('Temperature minimum must be less than maximum', 'error');
-    return;
+  const next={temp:{min:Number.isNaN(tempMin)?null:tempMin,max:Number.isNaN(tempMax)?null:tempMax},humi:{min:Number.isNaN(humiMin)?null:humiMin,max:Number.isNaN(humiMax)?null:humiMax}};
+  for(const [name,r] of Object.entries(next)) {
+    if(Object.values(r).some(v=>v!==null&&!Number.isFinite(v)) || (r.min!==null&&r.max!==null&&r.min>=r.max)) return showToast(name+': minimum must be less than maximum','error');
+    if(name==='humi'&&Object.values(r).some(v=>v!==null&&(v<0||v>100))) return showToast('Humidity must be between 0 and 100%','error');
   }
-
-  if (thresholds.humi.min !== null && thresholds.humi.max !== null && thresholds.humi.min >= thresholds.humi.max) {
-    showToast('Humidity minimum must be less than maximum', 'error');
-    return;
-  }
-
-  if (toEmail && !isValidEmail(toEmail)) {
-    showToast('Please enter a valid recipient email address', 'error');
-    return;
-  }
-
+  if(toEmail&&!isValidEmail(toEmail)) return showToast('Enter a valid email','error');
+  thresholds=next;
   emailAlerts.toEmail = toEmail;
   emailAlerts.cooldownMinutes = 1;
   
@@ -830,20 +831,7 @@ function scoreMetric(values, thresh) {
   return 75;
 }
 
-function predictBreach(values, threshold, direction) {
-  if (threshold === null) return null;
-  const valid = validSlice(values, 10);
-  if (valid.length < 4) return null;
-  const { slope } = linReg(valid);
-  const cur = valid[valid.length - 1];
-  if (direction === 'min' && slope >= -0.05) return null;
-  if (direction === 'max' && slope <=  0.05) return null;
-  if (direction === 'min' && cur <= threshold) return null;
-  if (direction === 'max' && cur >= threshold) return null;
-  const steps = Math.abs((cur - threshold) / slope);
-  const mins  = Math.round(steps * 0.5);
-  return mins >= 1 && mins <= 90 ? mins : null;
-}
+function predictBreach() { return null; } // Requires timestamp-aware validated forecasting.
 
 function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
                           latestTemp, latestHumi, latestMois, latestPir, fieldNum,
@@ -854,10 +842,10 @@ function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
 
   const tempZPenalty = tempZ !== null ? Math.min(25, Math.max(0, (Math.abs(tempZ) - 1.5) * 12)) : 0;
   const humiZPenalty = humiZ !== null ? Math.min(25, Math.max(0, (Math.abs(humiZ) - 1.5) * 12)) : 0;
-  const corrPenalty  = correlation !== null && Math.abs(correlation) < 0.3 ? 10 : 0;
+  const corrPenalty = 0;
 
   const healthScore = Math.round(Math.max(0,
-    tempScore * 0.38 + humiScore * 0.38 + dataScore * 0.14 - tempZPenalty * 0.5 - humiZPenalty * 0.5 - corrPenalty
+    tempScore * 0.43 + humiScore * 0.43 + dataScore * 0.14 - tempZPenalty * 0.5 - humiZPenalty * 0.5 - corrPenalty
   ));
 
   const healthLabel =
@@ -921,7 +909,7 @@ function computeInsights(tempSeries, humiSeries, moisSeries, pirSeries,
   const pir  = latestPir  === 1 ? 'active' : latestPir  === 0 ? 'inactive' : null;
 
   if (correlation !== null && Math.abs(correlation) < 0.3) {
-    observations.push(`T-H correlation breakdown (r=${correlation}) — possible environmental event or sensor fault`);
+    observations.push(`Weak T-H correlation (r=${correlation}); this alone does not indicate a fault`);
   } else if (mois === 'Dry' && pir === 'inactive') {
     observations.push('Soil moisture low and no motion detected — environment is idle');
   } else if (mois === 'Dry') {
@@ -977,9 +965,7 @@ function updateInsightsPanel(insights) {
   }
 
   if (obsEl && observations) {
-    obsEl.innerHTML = observations
-      .map((obs, i) => `<li style="animation-delay:${i * 0.1}s">${obs}</li>`)
-      .join('');
+    obsEl.replaceChildren(...observations.map(obs=>{const li=document.createElement('li');li.textContent=obs;return li;}));
   }
 
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1076,7 +1062,8 @@ function showToast(message, type = 'info', duration = 4000) {
     info:    `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`
   };
 
-  toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+  toast.innerHTML = icons[type] || icons.info;
+  const text = document.createElement('span'); text.textContent=message; toast.appendChild(text);
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -1094,6 +1081,17 @@ function init() {
   
   // Initialize charts and load data
   initCharts();
+  document.getElementById('demoToggle').addEventListener('change',e=>{demoMode=e.target.checked;refreshDashboard();});
+  document.getElementById('historySelect').addEventListener('change',e=>{RESULTS=Number(e.target.value);refreshDashboard();});
+  document.getElementById('exportBtn').addEventListener('click',()=>{
+    if(!exportRows.length) return showToast('Load readings first','info');
+    const url=URL.createObjectURL(new Blob([['timestamp,device,metric,value,source',...exportRows.map(r=>r.join(','))].join('\r\n')],{type:'text/csv'}));
+    const a=document.createElement('a');a.href=url;a.download='iot-readings.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+  document.getElementById('thresholdModal').addEventListener('keydown',e=>{
+    if(e.key!=='Tab')return;const items=[...e.currentTarget.querySelectorAll('button,input')],first=items[0],last=items.at(-1);
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  });
   refreshDashboard();
 
   // Event listeners
@@ -1126,7 +1124,7 @@ function init() {
   });
   
   // Auto-refresh
-  setInterval(refreshDashboard, AUTO_REFRESH_MS);
+  setInterval(()=>{if(!document.hidden&&!refreshBtn.disabled)refreshDashboard();}, AUTO_REFRESH_MS);
   
 }
 
@@ -1144,3 +1142,6 @@ if (document.readyState === 'loading') {
 
 
 
+
+function freshValue(series) {for(let i=series.values.length-1;i>=0;i--){if(Number.isFinite(series.values[i]))return Date.now()-series.times[i]<=300000&&series.times[i]<=Date.now()+60000?series.values[i]:null;}return null;}
+function alignedCorrelation(a,b){const map=new Map(b.times.map((t,i)=>[t,b.values[i]]));const pairs=a.times.map((t,i)=>[a.values[i],map.get(t)]).filter(p=>p.every(Number.isFinite));return pearsonCorrelation(pairs.map(p=>p[0]),pairs.map(p=>p[1]));}

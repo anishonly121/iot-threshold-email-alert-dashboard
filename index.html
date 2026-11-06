@@ -10,7 +10,7 @@
   <title>IoT Dashboard — Live Sensor Monitor</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>"/>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -140,15 +140,15 @@
       </div>
     </header>
 
-    <!-- AI Insights Panel -->
+<section class="workspace-tools" aria-label="Monitoring controls"><div><span class="eyebrow">MONITORING WORKSPACE</span><p id="dataQuality" role="status">Connecting to sensor feeds…</p></div><div class="tool-actions"><label><input type="checkbox" id="demoToggle"> Demo mode</label><label>History <select id="historySelect"><option value="30">30 readings</option><option value="60" selected>60 readings</option><option value="120">120 readings</option></select></label><button id="exportBtn">Export CSV</button></div></section>
     <div class="ai-panel" id="aiPanel">
       <div class="ai-panel-header">
         <div class="ai-title">
-          <span class="ai-badge">AI</span>
+          <span class="ai-badge">SPC</span>
           <h2>Environmental Intelligence</h2>
         </div>
         <div class="ai-meta">
-          <span class="ai-powered">Powered by Claude</span>
+          <span class="ai-powered">Local statistical analysis</span>
           <span class="ai-status" id="aiStatus">Analyzing...</span>
         </div>
       </div>
@@ -165,7 +165,7 @@
               <div class="health-label" id="healthLabel">Loading</div>
             </div>
           </div>
-          <div class="health-caption">Environment Health</div>
+          <div class="health-caption">Heuristic environment score</div>
         </div>
 
         <div class="ai-insights-section">
@@ -325,7 +325,7 @@
 
   <!-- Threshold Settings Modal -->
   <div id="thresholdModal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-label="Threshold settings">
       <div class="modal-header">
         <h2>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -340,7 +340,7 @@
           </svg>
           Threshold Settings
         </h2>
-        <button class="close-btn" id="closeModal">
+        <button class="close-btn" id="closeModal" aria-label="Close settings">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -408,7 +408,7 @@
 
           <div class="input-row">
             <div class="input-group">
-              <label for="alertToEmail">Recipient Email</label>
+              <label for="alertToken">Alert access token (session only)</label><input type="password" id="alertToken" autocomplete="off" placeholder="Configured by the dashboard owner"><label for="alertToEmail">Approved recipient email</label>
               <input type="email" id="alertToEmail" placeholder="name@example.com">
             </div>
           </div>
@@ -420,7 +420,7 @@
             <line x1="12" y1="16" x2="12" y2="12"></line>
             <line x1="12" y1="8" x2="12.01" y2="8"></line>
           </svg>
-          <p>Enter your email to receive alerts when temperature or humidity goes below the configured minimum threshold.</p>
+          <p>Enter your email to receive alerts when temperature or humidity crosses a configured minimum or maximum threshold while this page is open. Delivery requires server configuration.</p>
         </div>
       </div>
 
@@ -431,7 +431,7 @@
     </div>
   </div>
 
-  <div id="toastContainer" class="toast-container"></div>
+  <div id="toastContainer" role="status" aria-live="polite" class="toast-container"></div>
   <script src="app.js"></script>
 </body>
 </html>
